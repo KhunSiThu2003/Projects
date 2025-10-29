@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { lazy } from "react";
-import Layout from "../components/Layout";
+import ChatLayout from "../components/chat/ChatLayout";
+import AuthLayout from "../components/auth/AuthLayout";
 
 const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("../pages/auth/RegisterPage"));
@@ -12,7 +13,7 @@ const router = createBrowserRouter([
     {
         path: "/",
         errorElement: <NotFoundPage />,
-        element: <Layout />,
+        element: <AuthLayout />,
         children: [
             {
                 index: true,
@@ -28,7 +29,13 @@ const router = createBrowserRouter([
             },
             {
                 path: "/chat",
-                element: <ChatPage />,
+                element: <ChatLayout />,
+                children: [
+                    {
+                        index: true,
+                        element: <ChatPage />,
+                    },
+                ]
             }
         ],
     },
