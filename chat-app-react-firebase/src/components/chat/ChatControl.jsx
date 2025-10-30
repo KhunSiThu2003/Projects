@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+// ChatControl.jsx - Updated with React.memo to prevent unnecessary re-renders
+import React, { useState, useCallback } from 'react'
 import FriendList from './FriendList'
 import SearchFriend from './SearchFriend'
 import FriendRequestList from './FriendRequestList'
@@ -6,53 +7,45 @@ import ChatList from './ChatList'
 import BlockedList from './BlockedList'
 import SideBar from './SideBar'
 
-const ChatControl = ({ onSelectChat }) => {
+const ChatControl = React.memo(({ onSelectChat,setIsProfileModalOpen }) => {
   const [activeView, setActiveView] = useState("chats")
 
-  const renderContent = () => {
+  // Set global callback for chat selection from any component
+  React.useEffect(() => {
+    window.chatSelectCallback = onSelectChat
+    return () => {
+      window.chatSelectCallback = null
+    }
+  }, [onSelectChat])
+
+  const handleSetActiveView = useCallback((view) => {
+    setActiveView(view)
+  }, [])
+
+  const renderContent = useCallback(() => {
     switch (activeView) {
       case "chats":
-        return <ChatList onSelectChat={onSelectChat} />
+        return <ChatList handleSetActiveView={handleSetActiveView} onSelectChat={onSelectChat} />
       case "friends":
-        return <FriendList onSelectChat={onSelectChat} />
+        return <FriendList handleSetActiveView={handleSetActiveView} onSelectChat={onSelectChat} />
       case "search":
-        return <SearchFriend />
+        return <SearchFriend handleSetActiveView={handleSetActiveView} />
       case "request":
-        return <FriendRequestList />
+        return <FriendRequestList handleSetActiveView={handleSetActiveView} />
       case "blocked":
-        return <BlockedList onSelectChat={onSelectChat} />
+        return <BlockedList handleSetActiveView={handleSetActiveView} onSelectChat={onSelectChat} />
       default:
-        return <FriendList onSelectChat={onSelectChat} />
+        return <FriendList handleSetActiveView={handleSetActiveView} onSelectChat={onSelectChat} />
     }
-  }
+  }, [activeView, onSelectChat])
 
   return (
     <div className='flex h-full bg-white border border-gray-200'>
       {/* Sidebar Navigation */}
-      <SideBar setShowList={setActiveView} activeView={activeView} />
+      <SideBar setIsProfileModalOpen={setIsProfileModalOpen} setShowList={handleSetActiveView} activeView={activeView} />
       
       {/* Main Content Area */}
-      <div className='flex-1 flex flex-col min-w-0'>
-        {/* Header - Only show for non-friends views */}
-        {activeView !== "chats" && (
-          <div className='p-4 border-b border-gray-200 bg-white'>
-            <div className='flex items-center justify-between'>
-              <h2 className='text-lg font-semibold text-gray-800 capitalize'>
-                {activeView === "search" ? "Search Friends" : 
-                 activeView === "request" ? "Friend Requests" : 
-                 activeView}
-              </h2>
-              <button 
-                onClick={() => setActiveView("chats")}
-                className='p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors'
-              >
-                <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
+      <div className='flex-1 flex flex-col min-w-0 pt-14 lg:pt-0 '>
 
         {/* Dynamic Content */}
         <div className='flex-1 overflow-hidden'>
@@ -61,6 +54,6 @@ const ChatControl = ({ onSelectChat }) => {
       </div>
     </div>
   )
-}
+})
 
 export default ChatControl

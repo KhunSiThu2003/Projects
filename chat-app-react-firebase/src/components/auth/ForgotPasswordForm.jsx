@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { userResetPassword } from '../../services/user';
+import { userResetPassword } from '../../services/auth';
 
 const ForgotPasswordForm = () => {
     const [isLoading, setIsLoading] = useState(false);

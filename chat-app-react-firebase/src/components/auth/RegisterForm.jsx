@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   userRegisterWithEmailAndPassword, 
   userRegisterWithGoogle 
-} from '../../services/user';
+} from '../../services/auth';
 
 const RegisterForm = () => {
     const [showPassword, setShowPassword] = useState(false);

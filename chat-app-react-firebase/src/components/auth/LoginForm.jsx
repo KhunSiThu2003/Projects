@@ -2,15 +2,11 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { 
-  userLoginWithEmailAndPassword, 
-  userLoginWithGoogle,
-   
-} from '../../services/user';
-import { auth, db } from '../../firebase/config';
-import { doc, setDoc, serverTimestamp, getDoc, } from 'firebase/firestore';
-import useCookie from 'react-use-cookie';
-import { sendEmailVerification } from 'firebase/auth';
+import {
+    userLoginWithEmailAndPassword,
+    userLoginWithGoogle,
+} from '../../services/auth';
+import useCookie from 'react-use-cookie';;
 
 const LoginForm = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -28,32 +24,21 @@ const LoginForm = () => {
         setIsLoading(true);
         try {
             const result = await userLoginWithEmailAndPassword(data.email, data.password);
-            
+
             if (result.success) {
                 const user = result.user;
-
-                // If email not verified, send verification email
-                if (!user.emailVerified) {
-                    try {
-                        await sendEmailVerification(user);
-                        toast.error('Email not verified. Verification email sent — please check your inbox.');
-                        // Sign out user if email is not verified
-                        await auth.signOut();
-                    } catch (verErr) {
-                        console.error('Error sending verification email on login:', verErr);
-                        toast.error('Email not verified. Failed to send verification email.');
-                    }
-                } else {
-                    // Set user cookie
-                    setUserCookie(JSON.stringify({ uid: user.uid, email: user.email }));
-                    toast.success('Signed in successfully');
-                    navigate('/chat');
-                }
+                setUserCookie(JSON.stringify({ uid: user.uid, email: user.email }));
+                toast.success('Signed in successfully');
+                navigate('/chat');
             }
-            // Error handling is done in the service function
+            // If not successful, the error is already handled in auth.js
+
         } catch (error) {
             console.error('Login error:', error);
-            toast.error('Sign in failed. Please try again.');
+            // Only show generic error if not already handled in auth.js
+            if (!error.code || !error.code.startsWith('auth/')) {
+                toast.error('Sign in failed. Please try again.');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -63,15 +48,14 @@ const LoginForm = () => {
         setIsLoading(true);
         try {
             const result = await userLoginWithGoogle();
-            
+
             if (result.success) {
                 const user = result.user;
-                // Set user cookie
                 setUserCookie(JSON.stringify({ uid: user.uid, email: user.email }));
                 toast.success('Google sign-in successful');
                 navigate('/chat');
             }
-            // Error handling is done in the service function
+
         } catch (error) {
             console.error('Google login error:', error);
             toast.error('Google sign-in failed. Please try again.');
@@ -94,9 +78,8 @@ const LoginForm = () => {
                     <input
                         type="email"
                         id="email"
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                            errors.email ? 'border-red-500' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${errors.email ? 'border-red-500' : 'border-gray-300'
+                            }`}
                         placeholder="Enter your email"
                         {...register('email', {
                             required: 'Email is required',
@@ -119,9 +102,8 @@ const LoginForm = () => {
                         <input
                             type={showPassword ? 'text' : 'password'}
                             id="password"
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pr-12 ${
-                                errors.password ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pr-12 ${errors.password ? 'border-red-500' : 'border-gray-300'
+                                }`}
                             placeholder="Enter your password"
                             {...register('password', {
                                 required: 'Password is required',
@@ -190,7 +172,7 @@ const LoginForm = () => {
                 </div>
 
                 <div className="mt-6">
-                    <button 
+                    <button
                         onClick={handleGoogleLogin}
                         type="button"
                         disabled={isLoading}

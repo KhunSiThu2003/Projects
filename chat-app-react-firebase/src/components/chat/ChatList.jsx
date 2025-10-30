@@ -1,141 +1,338 @@
-import React, { useState } from 'react'
+// ChatList.jsx - Fixed search functionality
+import React, { useState, useEffect, useCallback } from 'react'
+import { collection, onSnapshot, doc, getDoc, query, where, orderBy } from 'firebase/firestore'
+import { db } from '../../firebase/config'
+import useUserStore from '../../stores/useUserStore'
+import { toast } from 'react-hot-toast'
+import { getFriendsList } from '../../services/friend'
+import { FaComments, FaSearch } from "react-icons/fa";
 
-const ChatList = ({ onSelectChat }) => {
+const ChatList = ({ onSelectChat, handleSetActiveView }) => {
     const [searchTerm, setSearchTerm] = useState('')
+    const [chats, setChats] = useState([])
+    const [filteredChats, setFilteredChats] = useState([])
     const [activeChat, setActiveChat] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [friends, setFriends] = useState([])
+    const { user } = useUserStore()
 
-    const chats = [
-        {
-            id: 1,
-            name: "Theme Vanhorn",
-            lastMessage: "I can refer to the project structure and board some mistakes.",
-            time: "10:30 AM",
-            unread: 3,
-            active: true,
-            avatar: "TV",
-            isOnline: true
-        },
-        {
-            id: 2,
-            name: "Line Roy",
-            lastMessage: "Then'd, via meeting with client finances.",
-            time: "9:45 AM",
-            unread: 0,
-            active: false,
-            avatar: "LR",
-            isOnline: true
-        },
-        {
-            id: 3,
-            name: "Brad Frost",
-            lastMessage: "Not to meet you!",
-            time: "Yesterday",
-            unread: 1,
-            active: false,
-            avatar: "BF",
-            isOnline: false
-        },
-        {
-            id: 4,
-            name: "Paul Irish",
-            lastMessage: "Then'd look their chat waiting from boredom.",
-            time: "Yesterday",
-            unread: 0,
-            active: false,
-            avatar: "PI",
-            isOnline: true
-        },
-        {
-            id: 5,
-            name: "Jessica Glory",
-            lastMessage: "Then'd found books.",
-            time: "Oct 28",
-            unread: 0,
-            active: false,
-            avatar: "JG",
-            isOnline: false
-        },
-        {
-            id: 6,
-            name: "John Doe",
-            lastMessage: "If it is the second component will be completed today.",
-            time: "Oct 27",
-            unread: 0,
-            active: false,
-            avatar: "JD",
-            isOnline: true
-        },
-        {
-            id: 7,
-            name: "Eric Petersen",
-            lastMessage: "First of all men with the company CEO and GLA.",
-            time: "Oct 26",
-            unread: 12,
-            active: false,
-            avatar: "EP",
-            isOnline: false
-        },
-        {
-            id: 8,
-            name: "Design Team",
-            lastMessage: "Sarah: Let's schedule a meeting for next week",
-            time: "Oct 25",
-            unread: 0,
-            active: false,
-            avatar: "DT",
-            isOnline: true,
-            isGroup: true
-        },
-        {
-            id: 9,
-            name: "Project Alpha",
-            lastMessage: "Mike: The deadline has been moved to Friday",
-            time: "Oct 24",
-            unread: 5,
-            active: false,
-            avatar: "PA",
-            isOnline: true,
-            isGroup: true
+    // Load user's friends list - memoized
+    const loadFriends = useCallback(async () => {
+        try {
+            if (!user?.uid) return
+
+            const result = await getFriendsList(user.uid)
+            if (result.success) {
+                setFriends(result.friends || [])
+                console.log('Loaded friends:', result.friends?.length)
+            }
+        } catch (error) {
+            console.error('Error loading friends:', error)
         }
-    ]
+    }, [user?.uid])
 
-    const filteredChats = chats.filter(chat =>
-        chat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        chat.lastMessage.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    // Format timestamp - memoized
+    const formatTimestamp = useCallback((timestamp) => {
+        if (!timestamp) return 'Just now'
 
-    const handleChatClick = (chat) => {
+        try {
+            const now = new Date()
+            const messageDate = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+            const diffMs = now - messageDate
+            const diffMins = Math.floor(diffMs / 60000)
+            const diffHours = Math.floor(diffMs / 3600000)
+            const diffDays = Math.floor(diffMs / 86400000)
+
+            if (diffMins < 1) return 'Just now'
+            if (diffMins < 60) return `${diffMins}m ago`
+            if (diffHours < 24) return `${diffHours}h ago`
+            if (diffDays === 1) return 'Yesterday'
+            if (diffDays < 7) return `${diffDays}d ago`
+
+            return messageDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            })
+        } catch (error) {
+            return 'Recently'
+        }
+    }, [])
+
+    // Process chat data - memoized and optimized
+    const processChatData = useCallback(async (docSnapshot, friendsList) => {
+        try {
+            const chatData = docSnapshot.data()
+
+            // For individual chats only, find the other participant
+            const otherParticipantId = chatData.participants?.find(id => id !== user.uid)
+            if (!otherParticipantId) {
+                console.log('No other participant found for chat:', docSnapshot.id)
+                return null
+            }
+
+            // Check if the other participant is in friends list
+            const isFriend = friendsList.some(friend => friend.uid === otherParticipantId)
+            if (!isFriend) {
+                console.log('Skipping chat with non-friend:', otherParticipantId)
+                return null
+            }
+
+            // Get other participant's details
+            let otherParticipant = null
+            let chatName = 'Unknown User'
+
+            try {
+                const userDocRef = doc(db, "users", otherParticipantId)
+                const userDoc = await getDoc(userDocRef)
+                if (userDoc.exists()) {
+                    const userData = userDoc.data()
+                    otherParticipant = {
+                        uid: otherParticipantId,
+                        name: userData.fullName || 'Unknown User',
+                        avatar: userData.fullName ?
+                            userData.fullName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U',
+                        profilePic: userData.profilePic,
+                        isOnline: userData.status === 'online',
+                        lastSeen: userData.lastSeen
+                    }
+                    chatName = userData.fullName || 'Unknown User'
+                } else {
+                    console.log('User document not found:', otherParticipantId)
+                    return null
+                }
+            } catch (userError) {
+                console.error('Error fetching user:', userError)
+                return null
+            }
+
+            const processedChat = {
+                id: docSnapshot.id,
+                ...chatData,
+                otherParticipant,
+                name: chatName,
+                lastMessage: chatData.lastMessage || 'No messages yet',
+                time: formatTimestamp(chatData.lastMessageAt),
+                unread: chatData.unreadCount?.[user.uid] || 0
+            }
+
+            return processedChat
+        } catch (error) {
+            console.error('Error processing chat:', error)
+            return null
+        }
+    }, [user?.uid, formatTimestamp])
+
+    // Load chats for the current user - only with friends
+    const loadChats = useCallback(() => {
+        try {
+            setLoading(true)
+
+            if (!user?.uid) {
+                console.log('No user ID available')
+                setLoading(false)
+                return () => { } // Return empty cleanup function
+            }
+
+            console.log('Setting up chat listener for user:', user.uid)
+
+            // Query chats where the current user is a participant
+            const chatsRef = collection(db, "chats")
+            const chatsQuery = query(
+                chatsRef,
+                where(`participantsData.${user.uid}`, "==", true)
+            )
+
+            const unsubscribe = onSnapshot(chatsQuery,
+                async (snapshot) => {
+                    try {
+                        console.log('Chats snapshot received:', snapshot.docs.length, 'chats')
+
+                        // Process chats sequentially to avoid overwhelming promises
+                        const chatsData = []
+                        for (const docSnapshot of snapshot.docs) {
+                            const processedChat = await processChatData(docSnapshot, friends)
+                            if (processedChat) {
+                                chatsData.push(processedChat)
+                            }
+                        }
+
+                        // Sort by last message time
+                        const validChats = chatsData.sort((a, b) => {
+                            const timeA = a.lastMessageAt?.toDate?.() || new Date(0)
+                            const timeB = b.lastMessageAt?.toDate?.() || new Date(0)
+                            return timeB - timeA // Descending order (newest first)
+                        })
+
+                        console.log(`Processed ${validChats.length} valid friend chats`)
+
+                        setChats(validChats)
+
+                    } catch (processingError) {
+                        console.error('Error processing chats:', processingError)
+                        toast.error('Error loading conversations')
+                    } finally {
+                        setLoading(false)
+                    }
+                },
+                (error) => {
+                    console.error('Firestore query error:', error)
+                    toast.error('Failed to load conversations')
+                    setLoading(false)
+                }
+            )
+
+            return unsubscribe
+
+        } catch (error) {
+            console.error('Error setting up chat listener:', error)
+            setLoading(false)
+            return () => { } // Return empty cleanup function
+        }
+    }, [user?.uid, friends, processChatData])
+
+    // Search filter - Fixed implementation
+    useEffect(() => {
+        if (searchTerm.trim() === '') {
+            setFilteredChats(chats)
+        } else {
+            const searchLower = searchTerm.toLowerCase()
+            const filtered = chats.filter(chat => {
+                const chatName = chat.name?.toLowerCase() || ''
+                const lastMessage = chat.lastMessage?.toLowerCase() || ''
+                const otherParticipantName = chat.otherParticipant?.name?.toLowerCase() || ''
+                
+                return chatName.includes(searchLower) || 
+                       lastMessage.includes(searchLower) ||
+                       otherParticipantName.includes(searchLower)
+            })
+            setFilteredChats(filtered)
+        }
+    }, [searchTerm, chats])
+
+    // Handle chat click
+    const handleChatClick = useCallback((chat) => {
         setActiveChat(chat.id)
         if (onSelectChat) {
             onSelectChat(chat)
         }
+    }, [onSelectChat])
+
+    // Handle new conversation
+    const handleNewConversation = useCallback(() => {
+        toast.success('Add friends first to start conversations!')
+    }, [])
+
+    // Refresh chats list
+    const handleRefresh = useCallback(() => {
+        loadFriends()
+        toast.success('Refreshing conversations...')
+    }, [loadFriends])
+
+    // Load friends on component mount
+    useEffect(() => {
+        if (user?.uid) {
+            loadFriends()
+        }
+    }, [user?.uid, loadFriends])
+
+    // Load chats when friends list is loaded
+    useEffect(() => {
+        if (friends.length > 0 || user?.uid) {
+            const unsubscribe = loadChats()
+            return () => {
+                if (unsubscribe) {
+                    console.log('Cleaning up chat listener')
+                    unsubscribe()
+                }
+            }
+        }
+    }, [loadChats, friends.length, user?.uid])
+
+    const getAvatarContent = useCallback((chat) => {
+        if (chat.otherParticipant?.profilePic) {
+            return (
+                <img
+                    src={chat.otherParticipant.profilePic}
+                    alt={chat.name}
+                    className="w-12 h-12 rounded-full object-cover"
+                    onError={(e) => {
+                        e.target.style.display = 'none';
+                        // Fixed: Check if nextSibling exists before accessing style
+                        if (e.target.nextSibling && e.target.nextSibling.style) {
+                            e.target.nextSibling.style.display = 'flex';
+                        }
+                    }}
+                />
+            )
+        }
+        return (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gray-800">
+                <span className="text-white text-sm font-bold">
+                    {chat.otherParticipant?.avatar || 'U'}
+                </span>
+            </div>
+        )
+    }, [])
+
+    const getLastMessage = useCallback((chat) => {
+        if (!chat.lastMessage || chat.lastMessage === 'No messages yet') {
+            return 'Start a conversation'
+        }
+
+        if (chat.lastMessage.length > 60) {
+            return chat.lastMessage.substring(0, 60) + '...'
+        }
+        return chat.lastMessage
+    }, [])
+
+    // Handle search input change
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value)
     }
 
-    const formatTime = (time) => {
-        return time
+    // Clear search
+    const handleClearSearch = () => {
+        setSearchTerm('')
     }
 
     return (
-        <div className='flex flex-col h-full'>
-            {/* Search Bar */}
-            <div className='p-4 border-b border-gray-200 flex-shrink-0'>
-                <div className='relative'>
-                    <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-                        <svg className='h-4 w-4 text-gray-400' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' />
+        <div className='flex flex-col h-full bg-white'>
+            {/* Header */}
+            <div className='p-6 border-b border-gray-100'>
+                <div className='flex items-center justify-between mb-4'>
+                    <div>
+                        <h2 className='text-2xl font-bold text-gray-800'>Messages</h2>
+                        <p className='text-sm text-gray-500 mt-1'>
+                            Conversations with your friends
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200"
+                    >
+                        <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
+                    </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className='relative'>
+                    <div className='absolute z-40 inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+                        <FaSearch className='h-4 w-4 text-gray-400' />
                     </div>
                     <input
                         type='text'
                         placeholder='Search conversations...'
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm'
+                        onChange={handleSearchChange}
+                        className='w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md focus:ring-2 transition-all duration-300 text-sm bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg'
                     />
                     {searchTerm && (
                         <button
-                            onClick={() => setSearchTerm('')}
-                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors'
+                            onClick={handleClearSearch}
+                            className='absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-600 hover:text-gray-600 transition-colors duration-200'
                         >
                             <svg className='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                                 <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
@@ -147,58 +344,114 @@ const ChatList = ({ onSelectChat }) => {
 
             {/* Chats List */}
             <div className='flex-1 overflow-y-auto min-h-0'>
-                <div className='p-4'>
+                <div className='p-6'>
                     {/* Header */}
                     <div className='flex items-center justify-between mb-6'>
-                        <h3 className='text-lg font-semibold text-gray-800'>
-                            Conversations
-                        </h3>
-                        <span className='text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded'>
-                            {filteredChats.length} chats
+                        <div>
+                            <h3 className='text-xl font-bold text-gray-800'>
+                                Friend Conversations
+                            </h3>
+                            <p className='text-sm text-gray-500 mt-1'>
+                                {chats.length} chat{chats.length !== 1 ? 's' : ''} with friends • {' '}
+                                {chats.filter(chat => chat.otherParticipant?.isOnline).length} online
+                            </p>
+                        </div>
+                        <span className='text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full font-medium'>
+                            {filteredChats.length} shown
                         </span>
                     </div>
 
-                    {filteredChats.length === 0 ? (
-                        <div className='text-center py-12'>
-                            <svg className='w-16 h-16 text-gray-300 mx-auto mb-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={1} d='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' />
-                            </svg>
-                            <p className='text-gray-500 text-sm'>No conversations found</p>
-                            <p className='text-gray-400 text-xs mt-1'>Try adjusting your search terms</p>
+                    {/* Loading State */}
+                    {loading ? (
+                        <div className='space-y-4'>
+                            {[1, 2, 3, 4, 5].map((skeleton) => (
+                                <div key={skeleton} className='flex items-center space-x-4 p-4 animate-pulse bg-gray-50 rounded-2xl'>
+                                    <div className='w-12 h-12 bg-gray-200 rounded-full'></div>
+                                    <div className='flex-1 space-y-2'>
+                                        <div className='h-4 bg-gray-200 rounded w-1/2'></div>
+                                        <div className='h-3 bg-gray-200 rounded w-3/4'></div>
+                                        <div className='h-3 bg-gray-200 rounded w-1/4'></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : filteredChats.length === 0 ? (
+                        <div className='text-center py-16'>
+                            {searchTerm ? (
+                                <>
+                                    <div className='w-24 h-24 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner'>
+                                        <FaSearch className='w-10 h-10 text-gray-500' />
+                                    </div>
+
+                                    <h4 className='text-xl font-bold text-gray-700 mb-3'>
+                                        No conversations found
+                                    </h4>
+                                    <p className='text-gray-500 text-sm max-w-sm mx-auto mb-6'>
+                                        Try adjusting your search terms
+                                    </p>
+                                    <button
+                                        onClick={handleClearSearch}
+                                        className='duration-200 w-32 px-4 py-3 bg-white text-gray-700 border border-gray-200 rounded-md transition-all hover:bg-black hover:text-white hover:border-gray-300 shadow-sm hover:shadow-md font-medium'
+                                    >
+                                        Clear Search
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className='w-24 h-24 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner'>
+                                        <FaComments className='w-10 h-10 text-gray-500' />
+                                    </div>
+
+                                    {/* Heading */}
+                                    <h4 className='text-md font-bold text-gray-700 mb-3 text-center'>
+                                        No conversations with friends yet
+                                    </h4>
+
+                                    {/* Description */}
+                                    <p className='text-gray-500 text-sm max-w-sm mx-auto mb-6 text-center'>
+                                        Add friends first to start conversations. Go to the "Friends" or "Search" tab to find and add friends.
+                                    </p>
+
+                                    {/* Action Buttons */}
+                                    <div className='flex flex-row gap-3 justify-center'>
+                                        <button
+                                            onClick={() => handleSetActiveView('friends')}
+                                            className='w-32 px-4 py-3 bg-white text-gray-700 border border-gray-200 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-black hover:text-white hover:border-gray-300 shadow-sm hover:shadow-md font-medium'
+                                        >
+                                            Find Friends
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetActiveView('search')}
+                                            className='w-32 px-4 py-3 bg-white text-gray-700 border border-gray-200 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-black hover:text-white hover:border-gray-300 shadow-sm hover:shadow-md font-medium'
+                                        >
+                                            Search Users
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
-                        <div className='space-y-2'>
+                        <div className='space-y-3'>
                             {filteredChats.map((chat) => (
                                 <div
                                     key={chat.id}
                                     onClick={() => handleChatClick(chat)}
-                                    className={`p-3 rounded-xl cursor-pointer transition-all duration-200 border ${
-                                        activeChat === chat.id
-                                            ? 'bg-blue-50 border-blue-200 shadow-sm'
-                                            : 'border-transparent hover:bg-gray-50 hover:border-gray-200'
-                                    }`}
+                                    className={`group p-4 rounded-md cursor-pointer transition-all duration-200 border ${activeChat === chat.id
+                                        ? 'bg-blue-50 border-blue-200 shadow-lg scale-[1.02]'
+                                        : 'border-gray-100 hover:bg-gray-50 hover:border-blue-100 hover:shadow-md'
+                                        }`}
                                 >
                                     <div className='flex items-start space-x-3'>
                                         {/* Avatar */}
                                         <div className='relative flex-shrink-0'>
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                                chat.isGroup 
-                                                    ? 'bg-gradient-to-r from-purple-500 to-pink-600' 
-                                                    : 'bg-gradient-to-r from-blue-500 to-cyan-600'
-                                            }`}>
-                                                <span className='text-white text-sm font-bold'>
-                                                    {chat.avatar}
-                                                </span>
-                                            </div>
-                                            {/* Online Status */}
-                                            {!chat.isGroup && chat.isOnline && (
-                                                <div className='absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full'></div>
-                                            )}
-                                            {chat.isGroup && (
-                                                <div className='absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center'>
-                                                    <svg className='w-2 h-2 text-white' fill='currentColor' viewBox='0 0 20 20'>
-                                                        <path d='M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z'/>
-                                                    </svg>
+                                            {getAvatarContent(chat)}
+
+                                            {/* Unread Badge */}
+                                            {chat.unread > 0 && (
+                                                <div className='absolute -top-1 -right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center shadow-sm'>
+                                                    <span className='text-white text-xs font-bold'>
+                                                        {chat.unread > 9 ? '9+' : chat.unread}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -209,20 +462,34 @@ const ChatList = ({ onSelectChat }) => {
                                                 <h4 className='text-sm font-semibold text-gray-800 truncate'>
                                                     {chat.name}
                                                 </h4>
-                                                <div className='flex items-center space-x-2 flex-shrink-0'>
+                                                <div className='flex items-center space-x-2 flex-shrink-0 ml-2'>
                                                     <span className='text-xs text-gray-500'>
-                                                        {formatTime(chat.time)}
+                                                        {chat.time}
                                                     </span>
-                                                    {chat.unread > 0 && (
-                                                        <span className='bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center'>
-                                                            {chat.unread}
+                                                </div>
+                                            </div>
+                                            <p className='text-sm text-gray-600 truncate leading-tight mb-1'>
+                                                {getLastMessage(chat)}
+                                            </p>
+                                            <div className='flex items-center justify-between'>
+                                                <div className='flex items-center space-x-2'>
+                                                    {chat.otherParticipant?.isOnline && (
+                                                        <span className='text-xs text-green-500 font-medium'>
+                                                            Online
+                                                        </span>
+                                                    )}
+                                                    {!chat.otherParticipant?.isOnline && (
+                                                        <span className='text-xs text-gray-400'>
+                                                            Offline
                                                         </span>
                                                     )}
                                                 </div>
+                                                {chat.unread > 0 && (
+                                                    <span className='bg-blue-500 text-white text-xs px-2 py-1 rounded-full min-w-[20px] text-center font-medium'>
+                                                        {chat.unread}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <p className='text-sm text-gray-600 truncate leading-tight'>
-                                                {chat.lastMessage}
-                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -231,18 +498,8 @@ const ChatList = ({ onSelectChat }) => {
                     )}
                 </div>
             </div>
-
-            {/* New Chat Button - Fixed at bottom */}
-            <div className='p-4 border-t border-gray-200 flex-shrink-0'>
-                <button className='w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center space-x-2 font-medium'>
-                    <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
-                    </svg>
-                    <span>New Conversation</span>
-                </button>
-            </div>
         </div>
     )
 }
 
-export default ChatList
+export default React.memo(ChatList)

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+
 .page-loading-progress {
   animation: progress 1s infinite linear;
 }
@@ -17,4 +18,8 @@
   100% {
     transform: translateX(100%) scaleX(0.5);
   }
+}
+
+#user-profile-modal{
+  z-index: 100;
 }

@@ -1,155 +1,289 @@
-// SideBar.jsx
-import React, { useState } from 'react'
+// SideBar.jsx - Fixed responsive design without hover transitions
+import React, { useState, useEffect } from 'react'
 import UserInfo from './UserInfo'
-import { 
-  FaComments, 
-  FaUserFriends, 
-  FaSearch, 
-  FaUserPlus, 
-  FaBan,
+import {
+  FaUserFriends,
+  FaSearch,
+  FaUserPlus,
   FaBars,
-  FaTimes
+  FaTimes,
+  FaSignOutAlt,
+  FaCog,
+  FaEllipsisH,
+  FaRegCommentDots,
+  FaUserLock
 } from 'react-icons/fa'
+import { userLogout } from '../../services/auth'
+import { toast } from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
+import useUserStore from '../../stores/useUserStore'
+import useCookie from 'react-use-cookie'
 
-const SideBar = ({ setShowList, activeView }) => {
+const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const navigate = useNavigate()
+  const { user, setUser } = useUserStore()
+  const [, setUserCookie] = useCookie("user")
 
   const menuItems = [
-    { key: "chats", icon: <FaComments size={18} />, label: "Chats", color: "blue" },
-    { key: "friends", icon: <FaUserFriends size={18} />, label: "Friends", color: "green" },
-    { key: "search", icon: <FaSearch size={18} />, label: "Search", color: "purple" },
-    { key: "request", icon: <FaUserPlus size={18} />, label: "Requests", color: "orange" },
-    { key: "blocked", icon: <FaBan size={16} />, label: "Blocked", color: "red" },
-  ]
-
-  const getColorClasses = (color, isActive) => {
-    const colors = {
-      blue: isActive ? 'bg-blue-500 text-white' : 'text-blue-600 hover:bg-blue-50',
-      green: isActive ? 'bg-green-500 text-white' : 'text-green-600 hover:bg-green-50',
-      purple: isActive ? 'bg-purple-500 text-white' : 'text-purple-600 hover:bg-purple-50',
-      orange: isActive ? 'bg-orange-500 text-white' : 'text-orange-600 hover:bg-orange-50',
-      red: isActive ? 'bg-red-500 text-white' : 'text-red-600 hover:bg-red-50'
+    {
+      key: "chats",
+      icon: <FaRegCommentDots size={20} />,
+      label: "Chats",
+      notification: 3,
+    },
+    {
+      key: "friends",
+      icon: <FaUserFriends size={20} />,
+      label: "Friends",
+      notification: 0,
+    },
+    {
+      key: "search",
+      icon: <FaSearch size={20} />,
+      label: "Search",
+      notification: 0,
+    },
+    {
+      key: "request",
+      icon: <FaUserPlus size={20} />,
+      label: "Requests",
+      notification: 2,
+    },
+    {
+      key: "blocked",
+      icon: <FaUserLock size={20} />,
+      label: "Blocked",
+      notification: 0,
     }
-    return colors[color] || colors.blue
-  }
+  ];
+
 
   const handleMenuClick = (key) => {
     setShowList(key)
-    setIsMobileOpen(false)
+    // Close sidebar on mobile after selection
+    if (window.innerWidth < 1024) {
+      setIsMobileOpen(false)
+    }
   }
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+
+    setIsLoggingOut(true)
+    try {
+      const result = await userLogout()
+      if (result.success) {
+        setUserCookie('', { days: 0 })
+        setUser(null)
+        toast.success('Logged out successfully')
+        navigate('/')
+      } else {
+        throw new Error(result.error || 'Logout failed')
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+      toast.error(error.message || 'Logout failed. Please try again.')
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
+  // Handle responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsMobileOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isMobileOpen && !event.target.closest('.sidebar-container')) {
+        setIsMobileOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isMobileOpen])
 
   return (
     <>
       {/* Mobile Header */}
-      <div className='lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-40 p-4 shadow-sm'>
+      <div className='lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50 p-4 shadow-sm'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center space-x-3'>
             <button
               onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className='p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors'
+              className='p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200'
+              aria-label={isMobileOpen ? 'Close menu' : 'Open menu'}
             >
-              {isMobileOpen ? <FaTimes size={18} /> : <FaBars size={18} />}
+              {isMobileOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
             </button>
-            <div className='flex items-center space-x-3'>
-              <UserInfo />
-              <div>
-                <span className='text-sm font-semibold text-gray-800'>Messages</span>
-                <p className='text-xs text-green-500'>Online</p>
-              </div>
-            </div>
+            <UserInfo />
           </div>
-          
-          {/* Active view indicator for mobile */}
-          <div className='text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full capitalize font-medium'>
-            {activeView}
+
+          {/* Active view indicator */}
+          <div className='flex items-center space-x-2'>
+            {menuItems.find(item => item.key === activeView)?.notification > 0 && (
+              <span className='w-2 h-2 bg-red-500 rounded-full'></span>
+            )}
+            <div className='text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full capitalize'>
+              {activeView === 'request' ? 'Requests' : activeView}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
-        <div 
-          className='lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30 backdrop-blur-sm'
+        <div
+          className='lg:hidden fixed inset-0 bg-black/70 bg-opacity-50 z-50 backdrop-blur-sm transition-opacity duration-300'
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-40
-        w-80 md:w-20
-        bg-white
-        border-r border-gray-100
-        transform transition-transform duration-300 ease-in-out
-        flex flex-col
-        shadow-xl lg:shadow-none
-        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        
+      {/* Sidebar Container */}
+      <div
+        className={`
+          sidebar-container
+          /* Mobile */
+          fixed inset-y-0 left-0 z-50
+          w-54
+          bg-white
+          border-r border-gray-200
+          transform transition-transform duration-300 ease-in-out
+          flex flex-col
+          shadow-2xl
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          
+          /* Desktop */
+          lg:static lg:translate-x-0 
+          lg:w-20
+          lg:transition-all lg:duration-300
+          lg:shadow-lg
+          ${isExpanded ? 'lg:w-80' : ''}
+        `}
+      >
+
         {/* Desktop Header */}
-        <div className='hidden lg:block p-6 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50'>
-          <div className='flex items-center space-x-4'>
-            <div className='relative'>
-              <UserInfo />
-              <div className='absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full'></div>
-            </div>
-            <div className='md:hidden block'>
-              <h2 className='text-lg font-bold text-gray-800'>Messages</h2>
+        <div className='hidden lg:flex p-4 border-b border-gray-200 bg-white'>
+          <div className='flex items-center space-x-3 w-full min-w-0'>
+            <UserInfo setIsProfileModalOpen={setIsProfileModalOpen} />
+            <div className={`flex-1 min-w-0 transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'
+              }`}>
+              <h2 className='text-lg font-bold text-gray-800 truncate'>
+                {user?.fullName || 'User'}
+              </h2>
               <p className='text-sm text-green-500 font-medium'>Online</p>
             </div>
           </div>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="hidden lg:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200 flex-shrink-0"
+            aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <FaEllipsisH size={16} />
+          </button>
         </div>
 
         {/* Navigation Menu */}
-        <div className='flex-1 py-6 px-4'>
+        <div className='flex-1 py-4 px-3 '>
           <div className='space-y-1'>
             {menuItems.map((item) => {
               const isActive = activeView === item.key
-              const colorClasses = getColorClasses(item.color, isActive)
-              
               return (
                 <button
                   key={item.key}
                   onClick={() => handleMenuClick(item.key)}
                   className={`
-                    w-full flex items-center space-x-4
-                    px-4 py-3
-                    rounded mb-3
-                    transition-all duration-200
-                    group
-                    font-medium
-                    ${colorClasses}
-                    ${isActive 
-                      ? 'shadow-lg scale-[1.02]' 
-                      : 'hover:scale-[1.02] hover:shadow-md'
+      relative flex items-center w-full px-4 py-3 mb-6 rounded-md font-medium
+      transition-all duration-300 ease-in-out
+      border-2
+      ${isActive
+                      ? 'bg-black text-white border-black shadow-md shadow-gray-700 scale-[1.02]'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100 hover:text-black hover:border-gray-400'
                     }
-                  `}
+    `}
+                  title={item.label}
                 >
-                  <div className={`
-                    flex items-center justify-center
-                    transition-transform duration-200
-                    ${isActive ? 'scale-110' : 'group-hover:scale-110'}
-                  `}>
+                  {/* Icon + Badge */}
+                  <div className="flex items-center justify-center w-6 h-6">
                     {item.icon}
+                    {item.notification > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center bg-red-500 text-white shadow-sm">
+                        {item.notification > 9 ? '9+' : item.notification}
+                      </span>
+                    )}
                   </div>
-                  <span className={`
-                    text-sm font-semibold
-                    md:hidden block
-                    transition-all duration-200
-                    ${isActive ? 'translate-x-0' : 'group-hover:translate-x-1'}
-                  `}>
+
+                  {/* Label */}
+                  <span
+                    className={`
+        ml-3 text-sm font-semibold transition-all duration-300
+        whitespace-nowrap
+        lg:opacity-0 lg:max-w-0
+        ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
+        ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
+      `}
+                  >
                     {item.label}
                   </span>
-                  
-                  {/* Active indicator dot for mobile */}
-                  {isActive && (
-                    <div className='md:hidden ml-auto w-2 h-2 bg-white rounded-full' />
-                  )}
                 </button>
-              )
+              );
+
+
+
             })}
           </div>
         </div>
+
+        {/* Bottom Section */}
+        <div className="p-3 border-t border-gray-300 space-y-1">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={`
+      relative flex items-center w-full px-4 py-3 rounded-md font-medium
+      transition-all duration-300 ease-in-out
+      border-2
+      text-red-600 border-gray-200 hover:border-red-500 hover:bg-red-50
+      disabled:opacity-50 disabled:cursor-not-allowed
+    `}
+            title="Logout"
+          >
+            {/* Icon */}
+            <div className="relative flex items-center justify-center w-6 h-6">
+              <FaSignOutAlt
+                size={18}
+                className={`transition-transform duration-300 ${isLoggingOut ? 'animate-spin' : 'group-hover:scale-110'}`}
+              />
+            </div>
+
+            {/* Label */}
+            <span
+              className={`
+        ml-3 text-sm font-semibold transition-all duration-300
+        whitespace-nowrap
+        lg:opacity-0 lg:max-w-0
+        ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
+        ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
+      `}
+            >
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </span>
+          </button>
+        </div>
+
+
 
       </div>
 
