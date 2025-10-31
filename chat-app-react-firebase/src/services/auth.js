@@ -11,310 +11,396 @@ import {
     GoogleAuthProvider,
     sendEmailVerification,
     sendPasswordResetEmail,
-    signOut
+    signOut,
+    confirmPasswordReset,
+    verifyPasswordResetCode 
 } from "firebase/auth";
 import { db, auth } from "../firebase/config";
-import { toast } from "react-hot-toast";
 
-// Authentication Functions
-const userRegisterWithEmailAndPassword = async (data) => {
+const RegisterWithEmailAndPassword = async (data) => {
+  try {
+    const res = await createUserWithEmailAndPassword(auth, data.email, data.password);
+
     try {
-        const res = await createUserWithEmailAndPassword(auth, data.email, data.password);
-
-        // Send email verification to the new user
-        try {
-            await sendEmailVerification(res.user);
-            toast.success('Verification email sent. Please check your inbox.');
-        } catch (verErr) {
-            console.error('Error sending verification email:', verErr);
-            toast.error('Failed to send verification email.');
-        }
-
-        await setDoc(doc(db, "users", res.user.uid), {
-            uid: res.user.uid,
-            email: data.email,
-            fullName: data.fullName || "",
-            profilePic: data.profilePic || "https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg",
-            bio: data.bio || "Hey there! I'm using ChatApp 💬",
-            status: "offline",
-            lastSeen: serverTimestamp(),
-            isVerified: false,
-            friends: [],
-            sentRequests: [],
-            receivedRequests: [],
-            blocked: [],
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-        return { success: true, user: res.user };
-
+      await sendEmailVerification(res.user);
     } catch (error) {
-        console.error("Registration error:", error);
-
-        // Fix: Use correct error codes
-        switch (error.code) {
-            case "auth/email-already-in-use":
-                toast.error("This email is already in use.");
-                break;
-            case "auth/invalid-email":
-                toast.error("Invalid email address.");
-                break;
-            case "auth/weak-password":
-                toast.error("Password should be at least 6 characters.");
-                break;
-            case "auth/operation-not-allowed":
-                toast.error("Email/password accounts are not enabled.");
-                break;
-            default:
-                toast.error("Registration failed. Please try again.");
-        }
-        return { success: false, error };
+      console.error("Email verification failed:", error);
     }
+
+    await setDoc(doc(db, "users", res.user.uid), {
+      uid: res.user.uid,
+      email: data.email,
+      fullName: data.fullName ?? "",
+      profilePic: data.profilePic ?? "https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg",
+      bio: data.bio ?? "Hey there! I'm using ChatApp 💬",
+      status: "offline",
+      lastSeen: serverTimestamp(),
+      isVerified: false,
+      friends: [],
+      sentRequests: [],
+      receivedRequests: [],
+      blocked: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    return { success: true, user: res.user };
+
+  } catch (error) {
+    console.error("Registration error:", error);
+
+    let message = "Registration failed. Please try again.";
+    switch (error.code) {
+      case "auth/email-already-in-use":
+        message = "This email is already in use. Please use a different email.";
+        break;
+      case "auth/invalid-email":
+        message = "Invalid email address.";
+        break;
+      case "auth/weak-password":
+        message = "Password should be at least 6 characters.";
+        break;
+      case "auth/operation-not-allowed":
+        message = "Email/password accounts are not enabled.";
+        break;
+    }
+    return { success: false, error, message };
+  }
 };
 
-const userRegisterWithGoogle = async () => {
-    try {
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
+const RegisterWithGoogle = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
 
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
 
-        // If Google account is not verified, send verification email as a fallback
-        if (!user.emailVerified) {
-            try {
-                await sendEmailVerification(user);
-                toast.success('Verification email sent. Please check your inbox.');
-            } catch (verErr) {
-                console.error('Error sending verification email (Google):', verErr);
-            }
-        }
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
 
-        // Check if user document already exists
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        // Only create user document if it doesn't exist
-        if (!userDoc.exists()) {
-            await setDoc(userDocRef, {
-                uid: user.uid,
-                email: user.email,
-                fullName: user.displayName || "",
-                profilePic: user.photoURL || "https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg",
-                bio: "Hey there! I'm using ChatApp 💬",
-                status: "offline",
-                lastSeen: serverTimestamp(),
-                isVerified: user.emailVerified,
-                friends: [],
-                sentRequests: [],
-                receivedRequests: [],
-                blocked: [],
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
-        }
-        return { success: true, user };
-
-    } catch (error) {
-        console.error("Google registration error:", error);
-
-        switch (error.code) {
-            case "auth/popup-closed-by-user":
-                toast.error("Google sign-in was cancelled.");
-                break;
-            case "auth/popup-blocked":
-                toast.error("Popup was blocked. Please allow popups for this site.");
-                break;
-            case "auth/unauthorized-domain":
-                toast.error("This domain is not authorized for Google sign-in.");
-                break;
-            case "auth/account-exists-with-different-credential":
-                toast.error("An account already exists with the same email.");
-                break;
-            default:
-                toast.error("Google registration failed. Please try again.");
-        }
-        return { success: false, error };
+    if (userDoc.exists()) {
+      await setDoc(userDocRef, {
+        status: "online",
+        lastSeen: serverTimestamp(),
+        isVerified: user.emailVerified,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      
+      return { success: true, user, existing: true };
     }
+
+    await setDoc(userDocRef, {
+      uid: user.uid,
+      email: user.email,
+      fullName: user.displayName || "",
+      profilePic: user.photoURL || "https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg",
+      bio: "Hey there! I'm using ChatApp 💬",
+      status: "online",
+      lastSeen: serverTimestamp(),
+      isVerified: user.emailVerified,
+      friends: [],
+      sentRequests: [],
+      receivedRequests: [],
+      blocked: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, user, existing: false };
+
+  } catch (error) {
+    console.error("Google registration error:", error);
+
+    let message = "Google registration failed. Please try again.";
+    switch (error.code) {
+      case "auth/popup-closed-by-user":
+        message = "Google sign-in was cancelled.";
+        break;
+      case "auth/popup-blocked":
+        message = "Popup was blocked. Please allow popups for this site.";
+        break;
+      case "auth/unauthorized-domain":
+        message = "This domain is not authorized for Google sign-in.";
+        break;
+      case "auth/account-exists-with-different-credential":
+        message = "An account already exists with the same email. Please try signing in with email and password.";
+        break;
+      case "auth/network-request-failed":
+        message = "Network error. Please check your internet connection.";
+        break;
+    }
+
+    return { success: false, error, message };
+  }
 };
 
-const userLoginWithEmailAndPassword = async (email, password) => {
-    try {
-        const res = await signInWithEmailAndPassword(auth, email, password);
-        const user = res.user;
+const LoginWithEmailAndPassword = async (email, password) => {
+  try {
+    const res = await signInWithEmailAndPassword(auth, email, password);
+    const user = res.user;
 
-        if (!user.emailVerified) {
-            try {
-                await sendEmailVerification(user);
-                toast.error('Email not verified. Verification email sent — please check your inbox.');
-                await signOut(auth); // Fix: Use signOut instead of auth.signOut
-                return { success: false, error: { code: 'auth/email-not-verified' } };
-            } catch (verErr) {
-                console.error('Error sending verification email on login:', verErr);
-                toast.error('Email not verified. Failed to send verification email.');
-                return { success: false, error: verErr };
-            }
-        }
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(userDocRef, {
+      status: 'online',
+      lastSeen: serverTimestamp(),
+      isVerified: user.emailVerified,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
 
-        // Update user status in Firestore
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, {
-            status: 'online',
-            lastSeen: serverTimestamp(),
-            isVerified: user.emailVerified,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        return { success: true, user };
-
-    } catch (error) {
-        console.error('Login error:', error);
-
-        // Fix: Use correct error codes
-        switch (error.code) {
-            case 'auth/invalid-credential':
-            case 'auth/wrong-password':
-            case 'auth/user-not-found':
-                toast.error('Invalid email or password.');
-                break;
-            case 'auth/too-many-requests':
-                toast.error('Too many failed attempts. Try again later.');
-                break;
-            case 'auth/user-disabled':
-                toast.error('This account has been disabled.');
-                break;
-            case 'auth/invalid-email':
-                toast.error('Invalid email address.');
-                break;
-            case 'auth/network-request-failed':
-                toast.error('Network error. Please check your connection.');
-                break;
-            default:
-                toast.error('Sign in failed. Please try again.');
-        }
-        return { success: false, error };
+    if (!user.emailVerified) {
+      try {
+        await sendEmailVerification(user);
+        return { 
+          success: true, 
+          user, 
+          needsVerification: true,
+          message: 'Please verify your email. A new verification email has been sent.'
+        };
+      } catch (verErr) {
+        console.error('Error sending verification email:', verErr);
+        return { 
+          success: true, 
+          user, 
+          needsVerification: true,
+          message: 'Please verify your email to access all features.'
+        };
+      }
     }
+
+    return { success: true, user };
+
+  } catch (error) {
+    console.error('Login error:', error);
+
+    let message = 'Sign in failed. Please try again.';
+    switch (error.code) {
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+      case 'auth/invalid-credential':
+        message = 'Invalid email or password.';
+        break;
+      case 'auth/too-many-requests':
+        message = 'Too many failed attempts. Try again later.';
+        break;
+      case 'auth/user-disabled':
+        message = 'This account has been disabled.';
+        break;
+      case 'auth/invalid-email':
+        message = 'Invalid email address.';
+        break;
+      case 'auth/network-request-failed':
+        message = 'Network error. Please check your connection.';
+        break;
+    }
+
+    return { success: false, error, message };
+  }
 };
 
-const userLoginWithGoogle = async () => {
-    try {
-        const provider = new GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
+const LoginWithGoogle = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope("profile");
+    provider.addScope("email");
 
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
 
-        // Ensure user document exists in Firestore
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
 
-        if (!userDoc.exists()) {
-            await setDoc(userDocRef, {
-                uid: user.uid,
-                email: user.email,
-                fullName: user.displayName || '',
-                profilePic: user.photoURL || 'https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg',
-                bio: "Hey there! I'm using ChatApp 💬",
-                status: 'online',
-                lastSeen: serverTimestamp(),
-                isVerified: user.emailVerified,
-                friends: [],
-                sentRequests: [],
-                receivedRequests: [],
-                blocked: [],
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
-        } else {
-            // Update existing user status
-            await setDoc(userDocRef, {
-                status: 'online',
-                lastSeen: serverTimestamp(),
-                isVerified: user.emailVerified,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-        }
-
-        return { success: true, user };
-    } catch (error) {
-        console.error('Google login error:', error);
-
-        switch (error.code) {
-            case 'auth/popup-closed-by-user':
-                toast.error('Google sign-in was cancelled.');
-                break;
-            case 'auth/popup-blocked':
-                toast.error('Popup blocked. Allow popups for this site.');
-                break;
-            case 'auth/unauthorized-domain':
-                toast.error('This domain is not authorized for Google sign-in.');
-                break;
-            case 'auth/account-exists-with-different-credential':
-                toast.error('An account already exists with the same email but different sign-in method.');
-                break;
-            default:
-                toast.error('Google sign-in failed. Please try again.');
-        }
-        return { success: false, error };
+    if (!userDoc.exists()) {
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        email: user.email,
+        fullName: user.displayName || "",
+        profilePic: user.photoURL || "https://t3.ftcdn.net/jpg/06/19/26/46/360_F_619264680_x2PBdGLF54sFe7kTBtAvZnPyXgvaRw0Y.jpg",
+        bio: "Hey there! I'm using ChatApp 💬",
+        status: "online",
+        lastSeen: serverTimestamp(),
+        isVerified: user.emailVerified,
+        friends: [],
+        sentRequests: [],
+        receivedRequests: [],
+        blocked: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(
+        userDocRef,
+        {
+          status: "online",
+          lastSeen: serverTimestamp(),
+          isVerified: user.emailVerified,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
+
+    return { success: true, user };
+
+  } catch (error) {
+    console.error("Google login error:", error);
+
+    let message = "Google sign-in failed. Please try again.";
+
+    switch (error.code) {
+      case "auth/popup-closed-by-user":
+        message = "Google sign-in was cancelled.";
+        break;
+      case "auth/popup-blocked":
+        message = "Popup was blocked. Please allow popups for this site.";
+        break;
+      case "auth/unauthorized-domain":
+        message = "This domain is not authorized for Google sign-in.";
+        break;
+      case "auth/account-exists-with-different-credential":
+        message = "An account already exists with this email using a different sign-in method.";
+        break;
+      case "auth/network-request-failed":
+        message = "Network error. Please check your internet connection.";
+        break;
+    }
+
+    return { success: false, error, message };
+  }
 };
 
-const userResetPassword = async (email) => {
-    try {
-        await sendPasswordResetEmail(auth, email);
-        toast.success('Password reset email sent! Check your inbox.');
-        return { success: true };
-    } catch (error) {
-        console.error('Password reset error:', error);
+const ForgotPassword = async (email) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return { success: true, message: 'Password reset email sent successfully!' };
+  } catch (error) {
+    console.error('Password reset error:', error);
 
-        switch (error.code) {
-            case 'auth/user-not-found':
-                toast.error('No account found with this email address.');
-                break;
-            case 'auth/invalid-email':
-                toast.error('Invalid email address format.');
-                break;
-            case 'auth/too-many-requests':
-                toast.error('Too many attempts. Please try again later.');
-                break;
-            case 'auth/network-request-failed':
-                toast.error('Network error. Please check your connection.');
-                break;
-            default:
-                toast.error('Failed to send reset email. Please try again.');
-        }
-        return { success: false, error };
+    let message = 'Failed to send reset email. Please try again.';
+    switch (error.code) {
+      case 'auth/user-not-found':
+        message = 'No account found with this email address.';
+        break;
+      case 'auth/invalid-email':
+        message = 'Invalid email address.';
+        break;
+      case 'auth/too-many-requests':
+        message = 'Too many attempts. Please try again later.';
+        break;
+      case 'auth/network-request-failed':
+        message = 'Network error. Please check your connection.';
+        break;
+      case 'auth/missing-email':
+        message = 'Email address is required.';
+        break;
+      case 'auth/operation-not-allowed':
+        message = 'Password reset is not enabled. Please contact support.';
+        break;
     }
+
+    return { success: false, error, message };
+  }
 };
 
-// Add logout function
-const userLogout = async () => {
-    try {
-        if (auth.currentUser) {
-            // Update user status to offline before logout
-            const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            await setDoc(userDocRef, {
-                status: 'offline',
-                lastSeen: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-        }
-        
-        await signOut(auth);
-        return { success: true };
-    } catch (error) {
-        console.error('Logout error:', error);
-        return { success: false, error };
+const ResetPassword = async (oobCode, newPassword) => {
+  try {
+    await verifyPasswordResetCode(auth, oobCode);
+    
+    await confirmPasswordReset(auth, oobCode, newPassword);
+    
+    return { 
+        success: true, 
+        message: 'Password reset successfully! You can now sign in with your new password.' 
+    };
+  } catch (error) {
+    console.error('Password reset error:', error);
+
+    let message = 'Failed to reset password. Please try again.';
+    switch (error.code) {
+      case 'auth/expired-action-code':
+        message = 'The reset link has expired. Please request a new one.';
+        break;
+      case 'auth/invalid-action-code':
+        message = 'The reset link is invalid. Please request a new one.';
+        break;
+      case 'auth/user-disabled':
+        message = 'This account has been disabled.';
+        break;
+      case 'auth/user-not-found':
+        message = 'No account found with this email.';
+        break;
+      case 'auth/weak-password':
+        message = 'Password should be at least 6 characters.';
+        break;
+      case 'auth/network-request-failed':
+        message = 'Network error. Please check your connection.';
+        break;
     }
+
+    return { success: false, error, message };
+  }
+};
+
+const SendEmailVerification = async () => {
+  try {
+    if (!auth.currentUser) {
+      return { success: false, message: 'No user is currently signed in.' };
+    }
+
+    if (auth.currentUser.emailVerified) {
+      return { success: false, message: 'Email is already verified.' };
+    }
+
+    await sendEmailVerification(auth.currentUser);
+    return { success: true, message: 'Verification email sent successfully!' };
+    
+  } catch (error) {
+    console.error('Email verification error:', error);
+    
+    let message = 'Failed to send verification email. Please try again.';
+    switch (error.code) {
+      case 'auth/too-many-requests':
+        message = 'Too many attempts. Please try again later.';
+        break;
+      case 'auth/user-not-found':
+        message = 'User not found. Please sign in again.';
+        break;
+      case 'auth/network-request-failed':
+        message = 'Network error. Please check your connection.';
+        break;
+    }
+    
+    return { success: false, error, message };
+  }
+};
+
+const LogoutUser = async () => {
+  try {
+    if (auth.currentUser) {
+      const userDocRef = doc(db, "users", auth.currentUser.uid);
+      await setDoc(userDocRef, {
+        status: "offline",
+        lastSeen: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+
+    await signOut(auth);
+    return { success: true, message: 'Logged out successfully!' };
+  } catch (error) {
+    console.error('Logout error:', error);
+    return { success: false, error, message: 'Failed to log out. Please try again.' };
+  }
 };
 
 export { 
-    userLoginWithEmailAndPassword, 
-    userLoginWithGoogle, 
-    userResetPassword, 
-    userRegisterWithEmailAndPassword, 
-    userRegisterWithGoogle,
-    userLogout 
+  RegisterWithEmailAndPassword, 
+  RegisterWithGoogle, 
+  LoginWithEmailAndPassword, 
+  LoginWithGoogle,
+  ForgotPassword,
+  ResetPassword,
+  SendEmailVerification,
+  LogoutUser 
 };

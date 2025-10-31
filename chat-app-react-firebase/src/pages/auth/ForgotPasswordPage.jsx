@@ -1,15 +1,26 @@
-import ForgotPasswordForm from "../../components/auth/ForgotPasswordForm";
-
+import React from 'react'
+import { Link } from 'react-router-dom'
+import ForgotPasswordForm from './../../components/auth/ForgotPasswordForm';
 
 const ForgotPasswordPage = () => {
-
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-                <ForgotPasswordForm />
-            </div>
-        </div>
-    );
-};
+    <div className="flex items-center justify-center min-h-screen md:p-4">
+      <div
+        className="
+      bg-white 
+      rounded-xl md:shadow-lg 
+      md:w-[450px] w-full h-screen md:h-auto
+      p-6 sm:p-8
+      flex flex-col justify-center
+    "
+      >
 
-export default ForgotPasswordPage;
+        <ForgotPasswordForm />
+
+      
+      </div>
+    </div>
+  )
+}
+
+export default ForgotPasswordPage

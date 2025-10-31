@@ -1,5 +1,5 @@
 {
-  "name": "chat-app-react-firebase",
+  "name": "design-chat-app-react-firebase",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "dependencies": {
+ "dependencies": {
     "@tailwindcss/vite": "^4.1.16",
     "emoji-picker-react": "^4.15.0",
     "firebase": "^12.4.0",

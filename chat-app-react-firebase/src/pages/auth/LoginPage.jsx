@@ -1,31 +1,45 @@
-import LoginForm from "../../components/auth/LoginForm";
+import React from 'react'
+import LoginForm from '../../components/auth/LoginForm'
+import { Link } from 'react-router-dom'
 
 const LoginPage = () => {
-
-
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
-            <p className="text-gray-600">Sign in to your account</p>
-          </div>
 
-          <LoginForm/>
+    <div className="flex items-center justify-center min-h-screen md:p-4">
+      <div
+        className="
+      bg-white 
+      rounded-xl md:shadow-lg 
+      md:w-[450px] w-full h-screen md:h-auto
+      p-6 sm:p-8
+      flex flex-col justify-center
+    "
+      >
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+            Sign in to your account
+          </h1>
+          <p className="text-gray-500 text-sm md:text-base">
+            Join us and start chatting instantly
+          </p>
+        </div>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              Don't have an account?{' '}
-              <a href="/register" className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200">
-                Sign up
-              </a>
-            </p>
-          </div>
+        <LoginForm />
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600 text-sm md:text-base">
+             Don't have an account?{' '}
+            <Link
+              to="/register"
+              className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200"
+            >
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default LoginPage;
+export default LoginPage

@@ -1,32 +1,44 @@
-import RegisterForm from "../../components/auth/RegisterForm";
-
+import React from 'react'
+import RegisterForm from '../../components/auth/RegisterForm';
+import { Link } from 'react-router-dom';
 
 const RegisterPage = () => {
-
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Create Account</h1>
-            <p className="text-gray-600">Join us today and get started</p>
-          </div>
+    <div className="flex items-center justify-center min-h-screen md:p-4">
+      <div
+        className="
+      bg-white 
+      rounded-xl md:shadow-lg 
+      md:w-[450px] w-full h-screen md:h-auto
+      p-6 sm:p-8
+      flex flex-col justify-center
+    "
+      >
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+            Create Account
+          </h1>
+          <p className="text-gray-500 text-sm md:text-base">
+            Join us and start chatting instantly
+          </p>
+        </div>
 
-          <RegisterForm />
+        <RegisterForm />
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-600">
-              Already have an account?{' '}
-              <a href="/" className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200">
-                Sign in
-              </a>
-            </p>
-          </div>
+        <div className="mt-6 text-center">
+          <p className="text-gray-600 text-sm md:text-base">
+            Already have an account?{' '}
+            <Link
+              to="/"
+              className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default RegisterPage;
+export default RegisterPage
