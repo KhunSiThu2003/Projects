@@ -34,9 +34,8 @@ export const useResetPassword = () => {
                 setIsSuccess(true);
                 toast.success(result.message);
                 
-                // Redirect to login after 3 seconds
                 setTimeout(() => {
-                    navigate('/login', { replace: true });
+                    navigate('/', { replace: true });
                 }, 3000);
             } else {
                 toast.error(result.message);

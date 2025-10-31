@@ -13,7 +13,9 @@ import {
     sendPasswordResetEmail,
     signOut,
     confirmPasswordReset,
-    verifyPasswordResetCode 
+    verifyPasswordResetCode,
+    checkActionCode
+
 } from "firebase/auth";
 import { db, auth } from "../firebase/config";
 
@@ -305,7 +307,7 @@ const ForgotPassword = async (email) => {
 
 const ResetPassword = async (oobCode, newPassword) => {
   try {
-    await verifyPasswordResetCode(auth, oobCode);
+    await checkActionCode(auth, oobCode);
     
     await confirmPasswordReset(auth, oobCode, newPassword);
     

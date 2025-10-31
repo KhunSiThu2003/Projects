@@ -26,13 +26,13 @@ const ResetPasswordForm = () => {
     const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
 
     React.useEffect(() => {
-  if (isSuccess) {
-    const timer = setTimeout(() => {
-      navigate('/');
-    }, 3000);
-    return () => clearTimeout(timer);
-  }
-}, [isSuccess, navigate]);
+        if (isSuccess) {
+            const timer = setTimeout(() => {
+                navigate('/');
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [isSuccess, navigate]);
 
     if (!oobCode) {
         return (

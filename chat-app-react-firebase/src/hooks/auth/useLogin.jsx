@@ -17,59 +17,58 @@ export const useLogin = () => {
         formState: { errors }
     } = useForm();
 
-const handleLogin = async (data) => {
-  setIsLoading(true);
-  try {
-    const result = await LoginWithEmailAndPassword(data.email, data.password);
+    const handleLogin = async (data) => {
+        setIsLoading(true);
+        try {
+            const result = await LoginWithEmailAndPassword(data.email, data.password);
 
-    if (result.success) {
-      setUserCookie(JSON.stringify({
-        uid: result.user.uid,
-        email: result.user.email,
-        isVerified: result.user.emailVerified
-      }));
-      
-      if (result.needsVerification) {
-        toast.success(result.message || "Logged in! Please verify your email.");
-        navigate('/verify-email', { 
-          state: { email: result.user.email } 
-        });
-      } else {
-        toast.success("Logged in successfully!");
-        navigate('/chat'); 
-      }
-    } else {
-      toast.error(result.message);
-    }
-  } catch (err) {
-    console.error("Unexpected login error:", err);
-    toast.error("Something went wrong. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+            if (result.success) {
+                setUserCookie(JSON.stringify({
+                    uid: result.user.uid,
+                    email: result.user.email,
+                    isVerified: result.user.emailVerified
+                }));
+                
+                if (result.needsVerification) {
+                    toast.success(result.message || "Logged in! Please verify your email.");
+                    navigate('/verify-email', { 
+                        state: { email: result.user.email } 
+                    });
+                } else {
+                    navigate('/chat'); 
+                }
+            } else {
+                toast.error(result.message);
+            }
+        } catch (err) {
+            console.error("Unexpected login error:", err);
+            toast.error("Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleGoogleLogin = async () => {
-      setIsLoading(true);
-      try {
-        const result = await LoginWithGoogle();
+        setIsLoading(true);
+        try {
+            const result = await LoginWithGoogle();
 
-        if (result.success) {
-          setUserCookie(JSON.stringify({
-            uid: result.user.uid,
-            email: result.user.email,
-            isVerified: result.user.emailVerified
-          }));
-          toast.success("Logged in with Google successfully!");
-        } else {
-          toast.error(result.message);
+            if (result.success) {
+                setUserCookie(JSON.stringify({
+                    uid: result.user.uid,
+                    email: result.user.email,
+                    isVerified: result.user.emailVerified
+                }));
+                navigate('/chat');
+            } else {
+                toast.error(result.message);
+            }
+        } catch (err) {
+            console.error("Unexpected Google login error:", err);
+            toast.error("Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
-      } catch (err) {
-        console.error("Unexpected Google login error:", err);
-        toast.error("Something went wrong. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
     };
 
     const togglePasswordVisibility = () => {
