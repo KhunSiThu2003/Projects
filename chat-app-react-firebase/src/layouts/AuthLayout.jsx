@@ -3,17 +3,22 @@ import { Outlet, useNavigate } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import useCookie from "react-use-cookie";
 import PageLoading from "../components/PageLoading";
+import useUserStore from "../stores/useUserStore";
 
 const AuthLayout = () => {
-  const [userCookie] = useCookie("user_id");
+  const [userCookie, setUserCookie] = useCookie("user");
+  const { user, setUser } = useUserStore();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (userCookie) {
       try {
-        const user_id = JSON.parse(userCookie);
-        if (user_id) {
-          navigate("/chat");
+        const userData = JSON.parse(userCookie);
+        if (userData.uid && userData.email) {
+          setUser(userData);         
+          if (userData.emailVerified) {
+            navigate("/chat");
+          }
         }
       } catch {
         console.warn("Invalid cookie format");

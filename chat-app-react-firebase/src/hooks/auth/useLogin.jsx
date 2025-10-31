@@ -23,19 +23,14 @@ export const useLogin = () => {
             const result = await LoginWithEmailAndPassword(data.email, data.password);
 
             if (result.success) {
-                setUserCookie(JSON.stringify({
-                    uid: result.user.uid,
-                    email: result.user.email,
-                    isVerified: result.user.emailVerified
-                }));
-                
+
                 if (result.needsVerification) {
                     toast.success(result.message || "Logged in! Please verify your email.");
-                    navigate('/verify-email', { 
-                        state: { email: result.user.email } 
+                    navigate('/verify-email', {
+                        state: { email: result.user.email }
                     });
                 } else {
-                    navigate('/chat'); 
+                    setUserCookie(JSON.stringify(result.user));
                 }
             } else {
                 toast.error(result.message);

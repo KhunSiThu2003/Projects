@@ -15,7 +15,7 @@ export const useEmailVerification = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
-    
+
     const oobCode = searchParams.get('oobCode');
     const mode = searchParams.get('mode');
 
@@ -37,14 +37,14 @@ export const useEmailVerification = () => {
         }
 
         if (auth.currentUser?.emailVerified) {
-            navigate('/chat');
+            navigate('/');
             return;
         }
     }, [mode, oobCode, navigate]);
 
     useEffect(() => {
         let emailToSet = '';
-        
+
         if (location.state?.email) {
             emailToSet = location.state.email;
             console.log('Setting email from location state:', emailToSet);
@@ -52,7 +52,7 @@ export const useEmailVerification = () => {
             emailToSet = auth.currentUser.email;
             console.log('Setting email from current user:', emailToSet);
         }
-        
+
         if (emailToSet) {
             setUserEmail(emailToSet);
             setValue('email', emailToSet);
@@ -76,7 +76,7 @@ export const useEmailVerification = () => {
         setIsLoading(true);
         try {
             console.log('Sending verification email to:', data.email);
-            
+
             if (!auth.currentUser) {
                 toast.error('Please sign in first to verify your email.');
                 setIsLoading(false);
@@ -85,22 +85,22 @@ export const useEmailVerification = () => {
 
             if (auth.currentUser.emailVerified) {
                 toast.success('Your email is already verified!');
-                navigate('/chat');
+                navigate('/');
                 return;
             }
 
             await sendEmailVerification(auth.currentUser);
             const emailToVerify = auth.currentUser.email;
-            
+
             setUserEmail(emailToVerify);
             setEmailSent(true);
-            setCountdown(60); 
+            setCountdown(60);
             toast.success('Verification email sent successfully! Check your inbox.');
-            
+
         } catch (error) {
             console.error('Email verification sending error:', error);
             let message = "Failed to send verification email. Please try again.";
-            
+
             switch (error.code) {
                 case 'auth/too-many-requests':
                     message = 'Too many attempts. Please try again later.';
@@ -115,7 +115,7 @@ export const useEmailVerification = () => {
                     message = 'Invalid email address.';
                     break;
             }
-            
+
             toast.error(message);
         } finally {
             setIsLoading(false);
@@ -143,7 +143,7 @@ export const useEmailVerification = () => {
             await auth.currentUser.reload();
             if (auth.currentUser.emailVerified) {
                 toast.success('Email verified successfully!');
-                navigate('/chat');
+                navigate('/');
             } else {
                 toast.error('Email not verified yet. Please check your inbox and click the verification link.');
             }

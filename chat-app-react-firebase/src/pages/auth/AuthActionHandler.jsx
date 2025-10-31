@@ -35,7 +35,7 @@ const AuthActionHandler = () => {
                     
                     if (mode === 'verifyEmail') {
                         setTimeout(() => {
-                            navigate('/chat', { replace: true });
+                            navigate('/', { replace: true });
                         }, 2000);
                     } else if (mode === 'resetPassword') {
                         navigate(`/reset-password?oobCode=${encodeURIComponent(oobCode)}`, { replace: true });
@@ -63,7 +63,7 @@ const AuthActionHandler = () => {
                         }
                         
                         setTimeout(() => {
-                            navigate('/chat', { replace: true });
+                            navigate('/', { replace: true });
                         }, 3000);
                         break;
                         
@@ -86,7 +86,7 @@ const AuthActionHandler = () => {
                             message = 'This verification link was already used. Your email is already verified.';
                             setStatus('success');
                             setTimeout(() => {
-                                navigate('/chat', { replace: true });
+                                navigate('/', { replace: true });
                             }, 3000);
                             return;
                         } else {
@@ -150,14 +150,8 @@ const AuthActionHandler = () => {
                         Email Verified Successfully!
                     </h3>
                     <p className="text-sm text-gray-500 mb-6">
-                        Your email has been verified. Redirecting to chat...
+                        Your email has been verified. Redirecting to Login in ...
                     </p>
-                    <button
-                        onClick={() => navigate('/chat')}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                        Go to Chat Now
-                    </button>
                 </div>
             </div>
         );

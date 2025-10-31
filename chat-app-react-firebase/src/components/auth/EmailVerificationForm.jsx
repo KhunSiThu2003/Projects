@@ -1,4 +1,3 @@
-// EmailVerificationForm.jsx - Updated version
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useEmailVerification } from '../../hooks/auth/useEmailVerification';
@@ -21,7 +20,7 @@ const EmailVerificationForm = () => {
         errors
     } = useEmailVerification();
 
-    // Show verifying state when handling Firebase action URL
+
     if (isVerifying) {
         return (
             <div className="space-y-6 text-center">
@@ -38,7 +37,6 @@ const EmailVerificationForm = () => {
         );
     }
 
-    // Show success state after verification
     if (verificationStatus === 'success') {
         return (
             <div className="space-y-6 text-center">
@@ -49,16 +47,9 @@ const EmailVerificationForm = () => {
                 </div>
                 <h3 className="text-lg font-medium text-gray-900">Email Verified Successfully!</h3>
                 <p className="text-sm text-gray-500">
-                    Your email has been verified. Redirecting to chat...
+                    Your email has been verified. Redirecting to the login page...
                 </p>
-                <div className="flex justify-center space-x-4">
-                    <button
-                        onClick={() => window.location.href = '/chat'}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                        Go to Chat Now
-                    </button>
-                </div>
+                
             </div>
         );
     }
@@ -173,9 +164,8 @@ const EmailVerificationForm = () => {
                         <input
                             type="email"
                             id="email"
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                                errors.email ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${errors.email ? 'border-red-500' : 'border-gray-300'
+                                }`}
                             placeholder="Enter your email address"
                             {...register('email', {
                                 required: 'Email is required',

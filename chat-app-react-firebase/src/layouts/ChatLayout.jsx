@@ -1,19 +1,38 @@
-// ChatLayout.jsx - Updated with proper status management
+// ChatLayout.jsx - Complete real-time data subscription
 import { Outlet } from "react-router-dom";
-import toast, { Toaster } from "react-hot-toast";
-import { Suspense, useEffect, useState } from "react";
-import useCookie from "react-use-cookie";
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Toaster } from "react-hot-toast";
+import { Suspense, useEffect } from "react";
 import PageLoading from "../components/PageLoading";
+import useUserStore from "../stores/useUserStore";
+import useRealtimeStore from "../stores/useRealtimeStore";
 
 const ChatLayout = () => {
-  const [userCookie, setUserCookie] = useCookie("user_id");
-  const navigate = useNavigate();
+  const { user } = useUserStore();
+  const { subscribeToAllData, clearAllData, loading } = useRealtimeStore();
+
+  // Single real-time subscription for all data
+  useEffect(() => {
+    if (!user?.uid) {
+      clearAllData();
+      return;
+    }
+
+    console.log('🔄 Subscribing to all real-time data for user:', user.uid);
+
+    // Subscribe to all real-time data
+    const unsubscribe = subscribeToAllData(user.uid);
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      console.log('🧹 Cleaning up real-time subscriptions');
+      unsubscribe();
+    };
+  }, [user?.uid, clearAllData, subscribeToAllData]);
 
   return (
     <main className="min-h-screen bg-gray-100">
       <Suspense fallback={<PageLoading />}>
-        <Outlet />
+        {loading ? <PageLoading /> : <Outlet />}
       </Suspense>
       <Toaster
         position="top-right"
@@ -27,11 +46,6 @@ const ChatLayout = () => {
             fontSize: '0.95rem',
             fontWeight: 500,
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            animation: 'toastSlideIn 0.4s ease, toastFadeOut 0.3s ease 3.7s forwards',
           },
           success: {
             iconTheme: {

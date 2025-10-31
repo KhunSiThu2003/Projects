@@ -1,0 +1,218 @@
+import { create } from "zustand";
+import { 
+  subscribeToFriends, 
+  subscribeToChats, 
+  subscribeToUserProfile,
+  subscribeToFriendRequests,
+  subscribeToReceivedFriendRequests,
+  subscribeToBlockedUsers,
+  subscribeToAllRealtimeData 
+} from "../services/realtimeSubscriptions";
+
+const useRealtimeStore = create((set, get) => ({
+  // State
+  friends: [],
+  chats: [],
+  userProfile: null,
+  friendRequests: { sent: [], received: [] },
+  receivedFriendRequests: [],
+  blockedUsers: [],
+  loading: false,
+  error: null,
+  isSubscribed: false,
+
+  // Actions
+  clearAllData: () => set({ 
+    friends: [], 
+    chats: [], 
+    userProfile: null,
+    friendRequests: { sent: [], received: [] },
+    receivedFriendRequests: [],
+    blockedUsers: [],
+    error: null, 
+    loading: false 
+  }),
+
+  // Friends actions
+  getFriendById: (friendId) => {
+    const { friends } = get();
+    return friends.find(friend => friend.uid === friendId) || null;
+  },
+
+  isFriend: (userId) => {
+    const { friends } = get();
+    return friends.some(friend => friend.uid === userId);
+  },
+
+  getOnlineFriends: () => {
+    const { friends } = get();
+    return friends.filter(friend => friend.status === 'online');
+  },
+
+  getOfflineFriends: () => {
+    const { friends } = get();
+    return friends.filter(friend => friend.status === 'offline');
+  },
+
+  // Chats actions
+  getChatById: (chatId) => {
+    const { chats } = get();
+    return chats.find(chat => chat.id === chatId) || null;
+  },
+
+  getChatsWithParticipant: (participantId) => {
+    const { chats } = get();
+    return chats.filter(chat => 
+      chat.participantsData && chat.participantsData[participantId]
+    );
+  },
+
+  getUnreadChatsCount: () => {
+    const { chats } = get();
+    return chats.filter(chat => chat.unreadCount && chat.unreadCount > 0).length;
+  },
+
+  // Friend requests actions
+  hasPendingRequests: () => {
+    const { friendRequests } = get();
+    return friendRequests.received.length > 0;
+  },
+
+  getPendingRequestsCount: () => {
+    const { friendRequests } = get();
+    return friendRequests.received.length;
+  },
+
+  // Received friend requests actions
+  hasReceivedRequests: () => {
+    const { receivedFriendRequests } = get();
+    return receivedFriendRequests.length > 0;
+  },
+
+  getReceivedRequestsCount: () => {
+    const { receivedFriendRequests } = get();
+    return receivedFriendRequests.length;
+  },
+
+  getReceivedRequestById: (userId) => {
+    const { receivedFriendRequests } = get();
+    return receivedFriendRequests.find(request => request.uid === userId) || null;
+  },
+
+  // Blocked users actions
+  isUserBlocked: (userId) => {
+    const { blockedUsers } = get();
+    return blockedUsers.some(user => user.uid === userId);
+  },
+
+  // Real-time subscription to all data
+  subscribeToAllData: (userId) => {
+    if (!userId) {
+      console.error('User ID is required for real-time subscription');
+      return () => {};
+    }
+
+    const { isSubscribed } = get();
+    if (isSubscribed) {
+      console.log('Already subscribed to real-time data');
+      return () => {};
+    }
+
+    set({ loading: true, isSubscribed: true });
+
+    const checkAllDataLoaded = (state) => {
+      return state.friends.length >= 0 && 
+             state.chats.length >= 0 && 
+             state.userProfile && 
+             state.friendRequests && 
+             state.receivedFriendRequests.length >= 0 &&
+             state.blockedUsers.length >= 0;
+    };
+
+    const unsubscribe = subscribeToAllRealtimeData(userId, {
+      onFriendsUpdate: (friends) => {
+        set(state => ({ 
+          friends, 
+          loading: checkAllDataLoaded({ ...state, friends }) ? false : true 
+        }));
+      },
+      onChatsUpdate: (chats) => {
+        set(state => ({ 
+          chats, 
+          loading: checkAllDataLoaded({ ...state, chats }) ? false : true 
+        }));
+      },
+      onProfileUpdate: (userProfile) => {
+        set(state => ({ 
+          userProfile, 
+          loading: checkAllDataLoaded({ ...state, userProfile }) ? false : true 
+        }));
+      },
+      onRequestsUpdate: (friendRequests) => {
+        set(state => ({ 
+          friendRequests, 
+          loading: checkAllDataLoaded({ ...state, friendRequests }) ? false : true 
+        }));
+      },
+      onReceivedRequestsUpdate: (receivedFriendRequests) => {
+        set(state => ({ 
+          receivedFriendRequests, 
+          loading: checkAllDataLoaded({ ...state, receivedFriendRequests }) ? false : true 
+        }));
+      },
+      onBlockedUpdate: (blockedUsers) => {
+        set(state => ({ 
+          blockedUsers, 
+          loading: checkAllDataLoaded({ ...state, blockedUsers }) ? false : true 
+        }));
+      },
+      onError: (error) => {
+        console.error('Real-time subscription error:', error);
+        set({ 
+          error: error.message, 
+          loading: false 
+        });
+      }
+    });
+
+    // Return unsubscribe function
+    return () => {
+      unsubscribe();
+      set({ 
+        isSubscribed: false,
+        loading: false 
+      });
+    };
+  },
+
+  // Individual subscriptions (if needed)
+  subscribeToFriends: (userId) => {
+    return subscribeToFriends(userId, 
+      (friends) => set({ friends }),
+      (error) => set({ error: error.message })
+    );
+  },
+
+  subscribeToChats: (userId) => {
+    return subscribeToChats(userId, 
+      (chats) => set({ chats }),
+      (error) => set({ error: error.message })
+    );
+  },
+
+  subscribeToFriendRequests: (userId) => {
+    return subscribeToFriendRequests(userId, 
+      (friendRequests) => set({ friendRequests }),
+      (error) => set({ error: error.message })
+    );
+  },
+
+  subscribeToReceivedFriendRequests: (userId) => {
+    return subscribeToReceivedFriendRequests(userId, 
+      (receivedFriendRequests) => set({ receivedFriendRequests }),
+      (error) => set({ error: error.message })
+    );
+  }
+}));
+
+export default useRealtimeStore;
