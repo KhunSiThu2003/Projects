@@ -1,4 +1,4 @@
-// SearchFriend.jsx - Updated with simplified UI matching FriendList
+// SearchFriend.jsx - Complete fixed version
 import React, { useState, useEffect } from 'react'
 import { searchUsersByEmailOrName } from '../../services/user'
 import {
@@ -10,8 +10,8 @@ import {
     blockUser,
     unblockUser,
     checkFriendshipStatus,
-    getOrCreateChatRoom
 } from '../../services/friend'
+import { createOrGetChat } from '../../services/chatService'
 import useUserStore from '../../stores/useUserStore'
 import { toast } from 'react-hot-toast'
 import { FaSearch, FaUserPlus } from "react-icons/fa";
@@ -66,7 +66,6 @@ const SearchFriend = () => {
             const userData = searchResults.find(u => u.uid === userId);
             if (userData) {
                 const newStatus = await getFriendshipStatus(userData);
-
                 setSearchResults(prev =>
                     prev.map(u =>
                         u.uid === userId
@@ -108,7 +107,6 @@ const SearchFriend = () => {
                         result.users.map(async (userData) => {
                             try {
                                 const status = await getFriendshipStatus(userData);
-
                                 return {
                                     ...userData,
                                     status: status,
@@ -126,7 +124,6 @@ const SearchFriend = () => {
                             }
                         })
                     )
-
                     setSearchResults(usersWithStatus)
                 } else {
                     toast.error('Failed to search users')
@@ -148,26 +145,35 @@ const SearchFriend = () => {
     const handleStartChat = async (userData) => {
         setUserLoading(userData.uid, true)
         try {
-            const chatResult = await getOrCreateChatRoom(user.uid, userData.uid)
+            const chatResult = await createOrGetChat(user.uid, userData.uid)
 
-            if (chatResult.success) {
+            if (chatResult) {
                 const chatData = {
-                    id: chatResult.chatId,
+                    id: chatResult.id,
                     otherParticipant: {
                         uid: userData.uid,
-                        name: userData.fullName,
-                        isOnline: userData.isOnline
+                        name: userData.fullName || userData.displayName || 'Unknown User',
+                        profilePic: userData.profilePic,
+                        isOnline: userData.isOnline,
+                        lastSeen: userData.lastSeen
                     },
-                    lastMessage: "Start a conversation",
-                    lastMessageAt: new Date(),
-                    participants: [user.uid, userData.uid],
+                    name: userData.fullName || userData.displayName || 'Unknown User',
+                    lastMessage: chatResult.lastMessage || 'Start a conversation',
+                    lastMessageAt: chatResult.lastMessageAt || new Date(),
+                    participantsArray: [user.uid, userData.uid],
+                    participants: {
+                        [user.uid]: true,
+                        [userData.uid]: true
+                    },
                     isGroup: false
                 }
 
                 if (window.chatSelectCallback) {
                     window.chatSelectCallback(chatData)
+                    toast.success(`Started chat with ${userData.fullName}`)
+                } else {
+                    toast.error('Chat selection not available')
                 }
-
             } else {
                 toast.error('Failed to start chat')
             }
@@ -566,13 +572,20 @@ const SearchFriend = () => {
                     src={userData.profilePic}
                     alt={userData.fullName}
                     className="w-14 h-14 rounded-full object-cover shadow-sm"
+                    onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fallback = e.target.nextSibling;
+                        if (fallback) fallback.style.display = 'flex';
+                    }}
                 />
             )
         }
         return (
-            <span className="text-white text-sm font-bold">
-                {userData.avatar}
-            </span>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-600 shadow-sm">
+                <span className="text-white text-sm font-bold">
+                    {userData.avatar}
+                </span>
+            </div>
         )
     }
 
@@ -608,12 +621,12 @@ const SearchFriend = () => {
                         placeholder='Search by name or email...'
                         value={searchTerm}
                         onChange={(e) => handleSearch(e.target.value)}
-                        className='w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md focus:ring-2transition-all duration-300 text-sm bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg'
+                        className='w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 text-sm bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg'
                     />
                     {searchTerm && (
                         <button
                             onClick={() => handleSearch('')}
-                            className='absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-600 hover:text-gray-600 transition-colors duration-200'
+                            className='absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-600 hover:text-gray-800 transition-colors duration-200'
                         >
                             <svg className='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                                 <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
@@ -704,9 +717,11 @@ const SearchFriend = () => {
                                             <div className='flex items-center space-x-4 flex-1 min-w-0'>
                                                 {/* Avatar */}
                                                 <div className='relative flex-shrink-0'>
-                                                    <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition-all duration-300`}>
-                                                        {getAvatarContent(userData)}
-                                                    </div>
+                                                    {getAvatarContent(userData)}
+                                                    {/* Online status indicator */}
+                                                    {userData.isOnline && (
+                                                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                                                    )}
                                                 </div>
 
                                                 {/* User Info */}

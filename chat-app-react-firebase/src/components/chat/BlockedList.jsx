@@ -1,88 +1,29 @@
 import React, { useState, useEffect } from 'react'
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase/config'
 import { unblockUser } from '../../services/friend'
 import useUserStore from '../../stores/useUserStore'
+import useRealtimeStore from '../../stores/useRealtimeStore'
 import { toast } from 'react-hot-toast'
 import { FaLock, FaUserMinus, FaBan } from "react-icons/fa";
 
 const BlockedList = () => {
     const [searchTerm, setSearchTerm] = useState('')
-    const [blockedUsers, setBlockedUsers] = useState([])
     const [filteredUsers, setFilteredUsers] = useState([])
-    const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState({})
     const { user } = useUserStore()
+    const { 
+        blockedUsers, 
+        loading, 
+        error,
+        subscribeToAllData 
+    } = useRealtimeStore()
 
-    // Load blocked users from Firebase
-    const loadBlockedUsers = async () => {
-        try {
-            setLoading(true)
-            if (!user?.uid) {
-                toast.error('User not found')
-                return
-            }
-
-            const userRef = doc(db, "users", user.uid)
-            const userDoc = await getDoc(userRef)
-
-            if (!userDoc.exists()) {
-                toast.error('User document not found')
-                setBlockedUsers([])
-                return
-            }
-
-            const userData = userDoc.data()
-            const blockedUserIds = userData.blocked || []
-
-            if (blockedUserIds.length === 0) {
-                setBlockedUsers([])
-                return
-            }
-
-            // Fetch details for each blocked user
-            const blockedUsersPromises = blockedUserIds.map(async (blockedUserId) => {
-                try {
-                    const blockedUserRef = doc(db, "users", blockedUserId)
-                    const blockedUserDoc = await getDoc(blockedUserRef)
-                    
-                    if (blockedUserDoc.exists()) {
-                        const blockedUserData = blockedUserDoc.data()
-                        return {
-                            id: blockedUserId,
-                            uid: blockedUserId,
-                            name: blockedUserData.fullName || 'Unknown User',
-                            username: `@${blockedUserData.email?.split('@')[0] || 'user'}`,
-                            email: blockedUserData.email,
-                            avatar: blockedUserData.fullName ? 
-                                blockedUserData.fullName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U',
-                            profilePic: blockedUserData.profilePic,
-                            blockedDate: userData.blockedDates?.[blockedUserId] || new Date().toISOString().split('T')[0],
-                            blockedReason: userData.blockedReasons?.[blockedUserId] || 'Not specified',
-                            lastSeen: blockedUserData.lastSeen,
-                            status: blockedUserData.status || 'offline'
-                        }
-                    }
-                    return null
-                } catch (error) {
-                    console.error(`Error fetching blocked user ${blockedUserId}:`, error)
-                    return null
-                }
-            })
-
-            const blockedUsersData = await Promise.all(blockedUsersPromises)
-            const validBlockedUsers = blockedUsersData.filter(user => user !== null)
-            
-            setBlockedUsers(validBlockedUsers)
-
-        } catch (error) {
-            console.error('Error loading blocked users:', error)
-            toast.error('Failed to load blocked users')
-            setBlockedUsers([])
-        } finally {
-            setLoading(false)
+    // Setup realtime subscriptions
+    useEffect(() => {
+        if (user?.uid) {
+            const unsubscribe = subscribeToAllData(user.uid)
+            return unsubscribe
         }
-    }
+    }, [user?.uid, subscribeToAllData])
 
     // Format last interaction time
     const formatLastInteraction = (lastSeen) => {
@@ -159,10 +100,9 @@ const BlockedList = () => {
             setFilteredUsers(blockedUsers)
         } else {
             const filtered = blockedUsers.filter(user =>
-                user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.blockedReason?.toLowerCase().includes(searchTerm.toLowerCase())
+                (user.bio && user.bio.toLowerCase().includes(searchTerm.toLowerCase()))
             )
             setFilteredUsers(filtered)
         }
@@ -182,8 +122,6 @@ const BlockedList = () => {
         try {
             const result = await unblockUser(user.uid, userId)
             if (result.success) {
-                // Remove from local state immediately for better UX
-                setBlockedUsers(prev => prev.filter(user => user.id !== userId))
                 toast.success(`Unblocked ${userName}`)
             } else {
                 toast.error(result.error || 'Failed to unblock user')
@@ -210,7 +148,6 @@ const BlockedList = () => {
                 result.status === 'fulfilled' && result.value.success
             )
             
-            setBlockedUsers([])
             toast.success(`Unblocked ${successful.length} users`)
             
         } catch (error) {
@@ -219,45 +156,65 @@ const BlockedList = () => {
         }
     }
 
-    // Real-time listener for blocked users
-    useEffect(() => {
-        if (!user?.uid) return
+    // Format blocked users data from realtime store
+    const formatBlockedUsers = () => {
+        return blockedUsers.map(userData => ({
+            ...userData,
+            id: userData.uid,
+            name: userData.fullName || 'Unknown User',
+            username: `@${userData.email?.split('@')[0] || 'user'}`,
+            avatar: userData.fullName ? 
+                userData.fullName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U',
+            blockedDate: userData.blockedDate || new Date().toISOString().split('T')[0],
+            blockedReason: userData.blockedReason || 'Not specified',
+            isOnline: userData.status === 'online'
+        }))
+    }
 
-        const userRef = doc(db, "users", user.uid)
-        const unsubscribe = onSnapshot(userRef, (doc) => {
-            if (doc.exists()) {
-                const userData = doc.data()
-                const blockedUserIds = userData.blocked || []
-                
-                // If blocked list changed, reload
-                if (blockedUserIds.length !== blockedUsers.length) {
-                    loadBlockedUsers()
-                }
-            }
-        })
-
-        return () => unsubscribe()
-    }, [user?.uid])
-
-    // Load blocked users on component mount
-    useEffect(() => {
-        loadBlockedUsers()
-    }, [user?.uid])
+    const formattedBlockedUsers = formatBlockedUsers()
+    const displayedUsers = searchTerm ? filteredUsers : formattedBlockedUsers
 
     const getAvatarContent = (userData) => {
-        if (userData.profilePic) {
+        if (userData.profilePic || userData.photoURL) {
             return (
                 <img 
-                    src={userData.profilePic} 
+                    src={userData.profilePic || userData.photoURL}
                     alt={userData.name}
                     className="w-14 h-14 rounded-full object-cover opacity-60"
+                    onError={(e) => {
+                        e.target.style.display = 'none'
+                        e.target.nextSibling.style.display = 'flex'
+                    }}
                 />
             )
         }
         return (
-            <span className="text-white text-sm font-bold">
-                {userData.avatar}
-            </span>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center bg-gradient-to-r from-gray-400 to-gray-600 opacity-60">
+                <span className="text-white text-sm font-bold">
+                    {userData.avatar}
+                </span>
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="flex-1 flex flex-col bg-white">
+                <div className="p-4 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-800">Blocked Users</h2>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                        <p className="text-red-600">Error loading blocked users</p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
         )
     }
 
@@ -272,15 +229,6 @@ const BlockedList = () => {
                             Manage users you've blocked from contacting you
                         </p>
                     </div>
-                    <button
-                        onClick={loadBlockedUsers}
-                        disabled={loading}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200"
-                    >
-                        <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
                 </div>
 
                 {/* Search Bar */}
@@ -295,7 +243,7 @@ const BlockedList = () => {
                         placeholder='Search blocked users...'
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className='w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md focus:ring-2transition-all duration-300 text-sm bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg'
+                        className='w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 text-sm bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md focus:shadow-lg'
                     />
                     {searchTerm && (
                         <button
@@ -314,22 +262,29 @@ const BlockedList = () => {
             <div className='flex-1 overflow-y-auto min-h-0'>
                 <div className='p-6'>
                     {/* Stats Header */}
-                    {blockedUsers.length > 0 && !loading && (
+                    {formattedBlockedUsers.length > 0 && !loading && (
                         <div className='flex items-center justify-between mb-6'>
                             <div>
                                 <h3 className='text-lg font-semibold text-gray-800'>
-                                    Blocked Users ({blockedUsers.length})
+                                    Blocked Users ({formattedBlockedUsers.length})
                                 </h3>
                                 <p className='text-sm text-gray-500 mt-1'>
                                     These users cannot send you messages or friend requests
                                 </p>
                             </div>
-                           
+                            {formattedBlockedUsers.length > 1 && (
+                                <button
+                                    onClick={handleUnblockAll}
+                                    className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-all duration-200"
+                                >
+                                    Unblock All
+                                </button>
+                            )}
                         </div>
                     )}
 
                     {/* Loading State */}
-                    {loading ? (
+                    {loading && formattedBlockedUsers.length === 0 ? (
                         <div className='space-y-4'>
                             {[1, 2, 3].map((skeleton) => (
                                 <div key={skeleton} className='p-5 rounded-md border border-gray-100 bg-gray-50 animate-pulse'>
@@ -347,7 +302,7 @@ const BlockedList = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : filteredUsers.length === 0 && blockedUsers.length === 0 ? (
+                    ) : displayedUsers.length === 0 && formattedBlockedUsers.length === 0 ? (
                         <div className='text-center py-16'>
                             <div className='w-24 h-24 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner'>
                                 <FaLock className='w-10 h-10 text-gray-500' />
@@ -361,7 +316,7 @@ const BlockedList = () => {
                                 You can unblock them at any time from this list.
                             </p>
                         </div>
-                    ) : filteredUsers.length === 0 ? (
+                    ) : displayedUsers.length === 0 ? (
                         <div className='text-center py-16'>
                             <div className='w-24 h-24 bg-gradient-to-r from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner'>
                                 <svg className='w-10 h-10 text-gray-400' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
@@ -383,7 +338,7 @@ const BlockedList = () => {
                         </div>
                     ) : (
                         <div className='space-y-4'>
-                            {filteredUsers.map((userData) => {
+                            {displayedUsers.map((userData) => {
                                 const isLoading = actionLoading[userData.id]
                                 const reasonConfig = getReasonConfig(userData.blockedReason)
                                 
@@ -396,9 +351,7 @@ const BlockedList = () => {
                                             <div className='flex items-center space-x-4 flex-1 min-w-0'>
                                                 {/* Avatar */}
                                                 <div className='relative flex-shrink-0'>
-                                                    <div className='w-14 h-14 bg-gradient-to-r from-gray-400 to-gray-600 rounded-full flex items-center justify-center opacity-60'>
-                                                        {getAvatarContent(userData)}
-                                                    </div>
+                                                    {getAvatarContent(userData)}
                                                     <div className='absolute -bottom-1 -right-1 w-6 h-6 bg-red-500 border-2 border-white rounded-full flex items-center justify-center shadow-sm'>
                                                         <FaBan className='w-3 h-3 text-white' />
                                                     </div>
@@ -415,6 +368,11 @@ const BlockedList = () => {
                                                                 {userData.email}
                                                             </p>
                                                         </div>
+                                                        {userData.isOnline && (
+                                                            <span className="text-xs font-medium text-green-500 animate-pulse">
+                                                                Online
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     
                                                     <div className="flex items-center space-x-4 text-xs text-gray-400 mb-2">
@@ -424,12 +382,21 @@ const BlockedList = () => {
                                                             </svg>
                                                             <span>Blocked {formatBlockedDate(userData.blockedDate)}</span>
                                                         </div>
-                                                        
+                                                        <span className={`px-2 py-1 rounded-full text-xs border ${reasonConfig.color}`}>
+                                                            {reasonConfig.icon} {userData.blockedReason}
+                                                        </span>
                                                     </div>
                                                     
-                                                    <p className="text-xs text-gray-500">
-                                                        {reasonConfig.description}
-                                                    </p>
+                                                    {userData.bio && userData.bio !== "Hey there! I'm using ChatApp 💬" && (
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            {userData.bio}
+                                                        </p>
+                                                    )}
+                                                    {userData.lastSeen && !userData.isOnline && (
+                                                        <p className="text-xs text-gray-400 mt-1">
+                                                            Last seen: {formatLastInteraction(userData.lastSeen)}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -466,8 +433,20 @@ const BlockedList = () => {
                     )}
                 </div>
             </div>
+
+            {/* Loading indicator for updates */}
+            {loading && formattedBlockedUsers.length > 0 && (
+                <div className="p-3 text-center border-t border-gray-200 bg-blue-50">
+                    <div className="flex items-center justify-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">Updating blocked users...</p>
+                </div>
+            )}
         </div>
     )
 }
 
-export default BlockedList;
+export default BlockedList

@@ -1,4 +1,4 @@
-// SideBar.jsx - Fixed responsive design without hover transitions
+// SideBar.jsx - Updated with proper unread message count
 import React, { useState, useEffect } from 'react'
 import UserInfo from './UserInfo'
 import {
@@ -17,6 +17,7 @@ import {
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import useUserStore from '../../stores/useUserStore'
+import useRealtimeStore from '../../stores/useRealtimeStore'
 import useCookie from 'react-use-cookie'
 
 const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
@@ -25,41 +26,98 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const navigate = useNavigate()
   const { user, setUser } = useUserStore()
+  const { 
+    receivedFriendRequests, 
+    chats,
+    subscribeToAllData 
+  } = useRealtimeStore()
   const [, setUserCookie] = useCookie("user")
+
+  // Setup realtime subscriptions
+  useEffect(() => {
+    if (user?.uid) {
+      const unsubscribe = subscribeToAllData(user.uid)
+      return unsubscribe
+    }
+  }, [user?.uid, subscribeToAllData])
+
+  // Calculate unread messages count properly
+  const getUnreadMessagesCount = () => {
+    if (!chats || !Array.isArray(chats)) return 0;
+    
+    return chats.reduce((total, chat) => {
+      // Check if chat has unreadCount object and get the count for current user
+      const unreadCount = chat.unreadCount?.[user?.uid] || 0;
+      return total + unreadCount;
+    }, 0);
+  };
+
+  // Alternative method: Count chats with unread messages
+  const getUnreadChatsCount = () => {
+    if (!chats || !Array.isArray(chats)) return 0;
+    
+    return chats.filter(chat => {
+      const unreadCount = chat.unreadCount?.[user?.uid] || 0;
+      return unreadCount > 0;
+    }).length;
+  };
+
+  // Calculate real-time notification counts
+  const getNotificationCounts = () => {
+    const unreadMessagesCount = getUnreadMessagesCount();
+    const unreadChatsCount = getUnreadChatsCount();
+    const receivedRequestsCount = receivedFriendRequests.length;
+
+    console.log('Notification counts:', {
+      unreadMessages: unreadMessagesCount,
+      unreadChats: unreadChatsCount,
+      receivedRequests: receivedRequestsCount,
+      chats: chats?.length || 0
+    });
+
+    return {
+      chats: unreadMessagesCount, // Total unread messages across all chats
+      request: receivedRequestsCount,
+      friends: 0,
+      search: 0,
+      blocked: 0
+    };
+  };
+
+  const notificationCounts = getNotificationCounts();
 
   const menuItems = [
     {
       key: "chats",
       icon: <FaRegCommentDots size={20} />,
       label: "Chats",
-      notification: 3,
+      notification: notificationCounts.chats,
     },
     {
       key: "friends",
       icon: <FaUserFriends size={20} />,
       label: "Friends",
-      notification: 0,
+      notification: notificationCounts.friends,
     },
     {
       key: "search",
       icon: <FaSearch size={20} />,
       label: "Search",
-      notification: 0,
+      notification: notificationCounts.search,
     },
     {
       key: "request",
       icon: <FaUserPlus size={20} />,
       label: "Requests",
-      notification: 2,
+      notification: notificationCounts.request,
     },
     {
       key: "blocked",
       icon: <FaUserLock size={20} />,
       label: "Blocked",
-      notification: 0,
+      notification: notificationCounts.blocked,
     }
   ];
-
 
   const handleMenuClick = (key) => {
     setShowList(key)
@@ -115,6 +173,9 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isMobileOpen])
 
+  // Get total notification count for mobile header
+  const totalNotifications = Object.values(notificationCounts).reduce((sum, count) => sum + count, 0);
+
   return (
     <>
       {/* Mobile Header */}
@@ -128,16 +189,21 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
             >
               {isMobileOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
             </button>
-            <UserInfo />
+            <UserInfo setIsProfileModalOpen={setIsProfileModalOpen} />
           </div>
 
-          {/* Active view indicator */}
+          {/* Active view indicator with notifications */}
           <div className='flex items-center space-x-2'>
-            {menuItems.find(item => item.key === activeView)?.notification > 0 && (
-              <span className='w-2 h-2 bg-red-500 rounded-full'></span>
+            {totalNotifications > 0 && (
+              <span className='w-2 h-2 bg-red-500 rounded-full animate-pulse'></span>
             )}
-            <div className='text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full capitalize'>
+            <div className='text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full capitalize flex items-center gap-2'>
               {activeView === 'request' ? 'Requests' : activeView}
+              {notificationCounts[activeView] > 0 && (
+                <span className="text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                  {notificationCounts[activeView]}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -155,9 +221,8 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
       <div
         className={`
           sidebar-container
-          /* Mobile */
           fixed inset-y-0 left-0 z-50
-          w-54
+          w-64
           bg-white
           border-r border-gray-200
           transform transition-transform duration-300 ease-in-out
@@ -165,12 +230,11 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
           shadow-2xl
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
           
-          /* Desktop */
           lg:static lg:translate-x-0 
           lg:w-20
           lg:transition-all lg:duration-300
           lg:shadow-lg
-          ${isExpanded ? 'lg:w-80' : ''}
+          ${isExpanded ? 'lg:w-64' : ''}
         `}
       >
 
@@ -178,12 +242,16 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
         <div className='hidden lg:flex p-4 border-b border-gray-200 bg-white'>
           <div className='flex items-center space-x-3 w-full min-w-0'>
             <UserInfo setIsProfileModalOpen={setIsProfileModalOpen} />
-            <div className={`flex-1 min-w-0 transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'
-              }`}>
+            <div className={`flex-1 min-w-0 transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
               <h2 className='text-lg font-bold text-gray-800 truncate'>
                 {user?.fullName || 'User'}
               </h2>
               <p className='text-sm text-green-500 font-medium'>Online</p>
+              {totalNotifications > 0 && (
+                <p className='text-xs text-gray-500 mt-1'>
+                  {totalNotifications} new notification{totalNotifications !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -196,8 +264,8 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
         </div>
 
         {/* Navigation Menu */}
-        <div className='flex-1 py-4 px-3 '>
-          <div className='space-y-1'>
+        <div className='flex-1 py-4 px-3'>
+          <div className='space-y-2'>
             {menuItems.map((item) => {
               const isActive = activeView === item.key
               return (
@@ -205,21 +273,23 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
                   key={item.key}
                   onClick={() => handleMenuClick(item.key)}
                   className={`
-      relative flex items-center w-full px-4 py-3 mb-6 rounded-md font-medium
-      transition-all duration-300 ease-in-out
-      border-2
-      ${isActive
-                      ? 'bg-black text-white border-black shadow-md shadow-gray-700 scale-[1.02]'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100 hover:text-black hover:border-gray-400'
+                    relative flex items-center w-full px-4 py-3 rounded-lg font-medium
+                    transition-all duration-200 ease-in-out
+                    border-2
+                    ${isActive
+                      ? 'bg-black text-white border-black shadow-lg scale-[1.02]'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-black hover:border-gray-300'
                     }
-    `}
+                  `}
                   title={item.label}
                 >
                   {/* Icon + Badge */}
-                  <div className="flex items-center justify-center w-6 h-6">
+                  <div className="relative flex items-center justify-center w-6 h-6">
                     {item.icon}
                     {item.notification > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center bg-red-500 text-white shadow-sm">
+                      <span className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center text-white shadow-sm ${
+                        isActive ? 'bg-white text-black border border-gray-300' : 'bg-red-500'
+                      }`}>
                         {item.notification > 9 ? '9+' : item.notification}
                       </span>
                     )}
@@ -228,63 +298,66 @@ const SideBar = ({ setShowList, activeView, setIsProfileModalOpen }) => {
                   {/* Label */}
                   <span
                     className={`
-        ml-3 text-sm font-semibold transition-all duration-300
-        whitespace-nowrap
-        lg:opacity-0 lg:max-w-0
-        ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
-        ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
-      `}
+                      ml-3 text-sm font-semibold transition-all duration-300
+                      whitespace-nowrap
+                      lg:opacity-0 lg:max-w-0
+                      ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
+                      ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
+                    `}
                   >
                     {item.label}
                   </span>
+
+                  {/* Notification count for expanded view */}
+                  {(isMobileOpen || isExpanded) && item.notification > 0 && (
+                    <span className={`ml-auto text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center ${
+                      isActive ? 'bg-white text-black' : 'bg-red-500 text-white'
+                    }`}>
+                      {item.notification}
+                    </span>
+                  )}
                 </button>
               );
-
-
-
             })}
           </div>
         </div>
 
         {/* Bottom Section */}
-        <div className="p-3 border-t border-gray-300 space-y-1">
+        <div className="p-3 border-t border-gray-200 space-y-2">
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
             className={`
-      relative flex items-center w-full px-4 py-3 rounded-md font-medium
-      transition-all duration-300 ease-in-out
-      border-2
-      text-red-600 border-gray-200 hover:border-red-500 hover:bg-red-50
-      disabled:opacity-50 disabled:cursor-not-allowed
-    `}
+              relative flex items-center w-full px-4 py-3 rounded-lg font-medium
+              transition-all duration-200 ease-in-out
+              border-2
+              text-red-600 border-gray-200 hover:border-red-500 hover:bg-red-50
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
             title="Logout"
           >
             {/* Icon */}
             <div className="relative flex items-center justify-center w-6 h-6">
               <FaSignOutAlt
                 size={18}
-                className={`transition-transform duration-300 ${isLoggingOut ? 'animate-spin' : 'group-hover:scale-110'}`}
+                className={`transition-transform duration-300 ${isLoggingOut ? 'animate-spin' : ''}`}
               />
             </div>
 
             {/* Label */}
             <span
               className={`
-        ml-3 text-sm font-semibold transition-all duration-300
-        whitespace-nowrap
-        lg:opacity-0 lg:max-w-0
-        ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
-        ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
-      `}
+                ml-3 text-sm font-semibold transition-all duration-300
+                whitespace-nowrap
+                lg:opacity-0 lg:max-w-0
+                ${isMobileOpen ? 'opacity-100 max-w-[200px]' : ''}
+                ${isExpanded ? 'lg:opacity-100 lg:max-w-[200px]' : ''}
+              `}
             >
               {isLoggingOut ? 'Logging out...' : 'Logout'}
             </span>
           </button>
         </div>
-
-
-
       </div>
 
       {/* Mobile spacer */}

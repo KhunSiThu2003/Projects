@@ -6,7 +6,9 @@ import {
   subscribeToFriendRequests,
   subscribeToReceivedFriendRequests,
   subscribeToBlockedUsers,
-  subscribeToAllRealtimeData 
+  subscribeToAllRealtimeData,
+  subscribeToChatMessages,
+  subscribeToAllChatMessages 
 } from "../services/realtimeSubscriptions";
 
 const useRealtimeStore = create((set, get) => ({
@@ -55,10 +57,66 @@ const useRealtimeStore = create((set, get) => ({
   },
 
   // Chats actions
-  getChatById: (chatId) => {
-    const { chats } = get();
-    return chats.find(chat => chat.id === chatId) || null;
-  },
+// Add these methods to your useRealtimeStore.js
+
+// Enhanced chat actions
+getChatById: (chatId) => {
+  const { chats } = get();
+  return chats.find(chat => chat.id === chatId) || null;
+},
+
+updateChat: (chatId, updates) => {
+  set(state => ({
+    chats: state.chats.map(chat => 
+      chat.id === chatId 
+        ? { ...chat, ...updates }
+        : chat
+    )
+  }));
+},
+
+updateChatParticipantStatus: (chatId, participantId, status, lastSeen) => {
+  set(state => ({
+    chats: state.chats.map(chat => {
+      if (chat.id !== chatId) return chat;
+      
+      // Update otherParticipant status if this is the participant
+      if (chat.otherParticipant?.uid === participantId) {
+        return {
+          ...chat,
+          otherParticipant: {
+            ...chat.otherParticipant,
+            isOnline: status === 'online',
+            lastSeen: lastSeen
+          }
+        };
+      }
+      
+      return chat;
+    })
+  }));
+},
+
+// Update last message for a chat
+updateChatLastMessage: (chatId, lastMessage, lastMessageAt) => {
+  set(state => ({
+    chats: state.chats.map(chat => 
+      chat.id === chatId 
+        ? { 
+            ...chat, 
+            lastMessage,
+            lastMessageAt,
+            lastUpdated: lastMessageAt || serverTimestamp()
+          }
+        : chat
+    ).sort((a, b) => {
+      // Re-sort chats by last update time
+      const timeA = a.lastUpdated?.toDate?.() || a.lastMessageAt?.toDate?.() || new Date(0);
+      const timeB = b.lastUpdated?.toDate?.() || b.lastMessageAt?.toDate?.() || new Date(0);
+      return timeB - timeA;
+    })
+  }));
+},
 
   getChatsWithParticipant: (participantId) => {
     const { chats } = get();
@@ -71,6 +129,30 @@ const useRealtimeStore = create((set, get) => ({
     const { chats } = get();
     return chats.filter(chat => chat.unreadCount && chat.unreadCount > 0).length;
   },
+
+  getMessagesByChatId: (chatId) => {
+  const { chats } = get();
+  const chat = chats.find(chat => chat.id === chatId);
+  return chat?.messages || [];
+},
+
+subscribeToMessages: (chatId, onMessagesUpdate, onError) => {
+  return subscribeToChatMessages(chatId, onMessagesUpdate, onError);
+},
+
+subscribeToAllMessages: (userId, onMessagesUpdate, onError) => {
+  return subscribeToAllChatMessages(userId, onMessagesUpdate, onError);
+},
+
+updateChatMessages: (chatId, messages) => {
+  set(state => ({
+    chats: state.chats.map(chat => 
+      chat.id === chatId 
+        ? { ...chat, messages: messages }
+        : chat
+    )
+  }));
+},
 
   // Friend requests actions
   hasPendingRequests: () => {

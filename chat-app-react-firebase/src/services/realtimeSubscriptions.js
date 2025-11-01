@@ -81,6 +81,138 @@ export const subscribeToChats = (userId, onChatsUpdate, onError) => {
   }
 };
 
+// Add to realtimeSubscriptions.js
+
+/**
+ * Subscribe to messages for a specific chat
+ */
+export const subscribeToChatMessages = (chatId, onMessagesUpdate, onError) => {
+  try {
+    if (!chatId) {
+      const error = new Error('Chat ID is required');
+      if (onError) onError(error);
+      return () => {};
+    }
+
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+
+    let isActive = true;
+
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        if (!isActive) return;
+
+        const messages = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        onMessagesUpdate(messages);
+      }, 
+      (error) => {
+        if (!isActive) return;
+        console.error('Error in messages subscription:', error);
+        if (onError) onError(error);
+        onMessagesUpdate([]);
+      }
+    );
+
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
+
+  } catch (error) {
+    console.error('Error setting up messages subscription:', error);
+    if (onError) onError(error);
+    return () => {};
+  }
+};
+
+/**
+ * Subscribe to messages for all user's chats
+ */
+export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) => {
+  try {
+    if (!userId) {
+      const error = new Error('User ID is required');
+      if (onError) onError(error);
+      return () => {};
+    }
+
+    // First get user's chats, then subscribe to each chat's messages
+    const chatsRef = collection(db, "chats");
+    const q = query(
+      chatsRef, 
+      where("participantsArray", "array-contains", userId)
+    );
+
+    let isActive = true;
+    let chatUnsubscribers = new Map();
+
+    const unsubscribeChats = onSnapshot(q, 
+      (snapshot) => {
+        if (!isActive) return;
+
+        const userChats = [];
+        snapshot.forEach(doc => {
+          const chatData = doc.data();
+          userChats.push({
+            id: doc.id,
+            ...chatData
+          });
+        });
+
+        // Clean up subscriptions for chats that are no longer in the list
+        const currentChatIds = userChats.map(chat => chat.id);
+        chatUnsubscribers.forEach((unsub, chatId) => {
+          if (!currentChatIds.includes(chatId)) {
+            unsub();
+            chatUnsubscribers.delete(chatId);
+          }
+        });
+
+        // Subscribe to messages for each chat
+        userChats.forEach(chat => {
+          if (!chatUnsubscribers.has(chat.id)) {
+            const unsubscribeMessages = subscribeToChatMessages(
+              chat.id, 
+              (messages) => {
+                if (!isActive) return;
+                onMessagesUpdate(chat.id, messages);
+              },
+              (error) => {
+                if (!isActive) return;
+                console.error(`Error in messages for chat ${chat.id}:`, error);
+              }
+            );
+            
+            chatUnsubscribers.set(chat.id, unsubscribeMessages);
+          }
+        });
+      }, 
+      (error) => {
+        if (!isActive) return;
+        console.error('Error in all chats subscription:', error);
+        if (onError) onError(error);
+      }
+    );
+
+    return () => {
+      isActive = false;
+      unsubscribeChats();
+      chatUnsubscribers.forEach(unsub => unsub());
+      chatUnsubscribers.clear();
+    };
+
+  } catch (error) {
+    console.error('Error setting up all messages subscription:', error);
+    if (onError) onError(error);
+    return () => {};
+  }
+};
+
 /**
  * Fallback chat subscription without orderBy (no index required)
  */

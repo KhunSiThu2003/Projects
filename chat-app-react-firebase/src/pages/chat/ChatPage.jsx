@@ -1,10 +1,10 @@
+// ChatPage.jsx - Updated real-time chat listener
 import React, { useState, useEffect, useCallback } from 'react'
 import ChatRoom from '../../components/chat/ChatRoom'
 import ChatDetail from '../../components/chat/ChatDetail'
 import ChatSideBar from '../../components/chat/ChatSideBar'
-import { doc, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase/config'
 import useUserStore from '../../stores/useUserStore'
+import useRealtimeStore from '../../stores/useRealtimeStore'
 import { setUserOffline, setupActivityTracking, cleanupActivityTracking } from '../../services/user'
 
 const ChatPage = () => {
@@ -12,7 +12,8 @@ const ChatPage = () => {
   const [selectedChat, setSelectedChat] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const { user } = useUserStore()
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const { chats, subscribeToAllData, getChatById } = useRealtimeStore()
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -40,9 +41,16 @@ const ChatPage = () => {
     };
   }, [user?.uid]);
 
+  // Setup real-time subscriptions
+  useEffect(() => {
+    if (user?.uid) {
+      const unsubscribe = subscribeToAllData(user.uid)
+      return unsubscribe
+    }
+  }, [user?.uid, subscribeToAllData])
+
   // Handle chat selection from any component
   const handleSelectChat = useCallback((chat) => {
-    console.log('Chat selected:', chat)
     setSelectedChat(chat)
     if (isMobile) {
       setCurrentView('chatRoom')
@@ -67,43 +75,57 @@ const ChatPage = () => {
     }
   }, [isMobile])
 
-  // Listen for real-time updates to selected chat - OPTIMIZED VERSION
+  // Listen for real-time updates to selected chat using realtime store
   useEffect(() => {
     if (!selectedChat?.id) return
 
-    const chatRef = doc(db, "chats", selectedChat.id)
-    const unsubscribe = onSnapshot(chatRef,
-      (doc) => {
-        if (doc.exists()) {
-          const chatData = doc.data()
+    // Get the latest chat data from the store whenever chats update
+    const updatedChat = getChatById(selectedChat.id)
+    if (updatedChat) {
+      // Check if important data has changed
+      const hasImportantChanges = 
+        updatedChat.participants?.length !== selectedChat.participants?.length ||
+        updatedChat.lastMessage !== selectedChat.lastMessage ||
+        updatedChat.lastMessageAt?.toDate?.()?.getTime() !== selectedChat.lastMessageAt?.toDate?.()?.getTime() ||
+        updatedChat.otherParticipant?.isOnline !== selectedChat.otherParticipant?.isOnline
 
-          const hasImportantChanges =
-            chatData.participants?.length !== selectedChat.participants?.length;
-
-          if (hasImportantChanges) {
-            console.log('Important chat data changed, updating selectedChat')
-            setSelectedChat(prev => ({
-              ...prev,
-              ...chatData
-            }))
-          }
-          // Otherwise, ignore the update to prevent unnecessary re-renders
-        }
-      },
-      (error) => {
-        console.error('Error in chat listener:', error)
+      if (hasImportantChanges) {
+        console.log('Chat data updated from realtime store, updating selectedChat')
+        setSelectedChat(prev => ({
+          ...prev,
+          ...updatedChat,
+          // Preserve the otherParticipant object if it exists and merge updates
+          otherParticipant: updatedChat.otherParticipant || prev.otherParticipant
+        }))
       }
-    )
+    }
+  }, [chats, selectedChat?.id, getChatById])
 
-    return () => unsubscribe()
-  }, [selectedChat?.id])
+  // Alternative approach: More granular updates using store subscriptions
+  useEffect(() => {
+    if (!selectedChat?.id) return
+
+    // This effect will run whenever the chats in the store update
+    // and automatically keep the selectedChat in sync
+    const currentChatInStore = getChatById(selectedChat.id)
+    
+    if (currentChatInStore && currentChatInStore !== selectedChat) {
+      // Only update if there are meaningful changes
+      const shouldUpdate = 
+        currentChatInStore.lastMessage !== selectedChat.lastMessage ||
+        currentChatInStore.lastMessageAt !== selectedChat.lastMessageAt ||
+        currentChatInStore.otherParticipant?.isOnline !== selectedChat.otherParticipant?.isOnline
+
+      if (shouldUpdate) {
+        setSelectedChat(currentChatInStore)
+      }
+    }
+  }, [chats, selectedChat, getChatById])
 
   // For desktop - show all three columns
   if (!isMobile) {
     return (
       <div className='flex h-screen bg-gray-50'>
-
-
         <div className='w-110 flex-shrink-0 border-r border-gray-200'>
           <ChatSideBar setIsProfileModalOpen={setIsProfileModalOpen} onSelectChat={handleSelectChat} />
         </div>
@@ -132,7 +154,6 @@ const ChatPage = () => {
             </div>
           </section>
         )}
-
       </div>
     )
   }
@@ -140,7 +161,6 @@ const ChatPage = () => {
   // For mobile/tablet - show one view at a time
   return (
     <div className='h-screen bg-gray-50 relative'>
-
       {/* Chat List View */}
       {currentView === 'chatsidebar' && (
         <div className='h-full'>

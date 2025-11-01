@@ -1,359 +1,526 @@
-
-import React, { useState, useRef, useEffect } from 'react'
-import { collection, addDoc, query, where, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore'
-import { db } from '../../firebase/config'
-import useUserStore from '../../stores/useUserStore'
-import { toast } from 'react-hot-toast'
-import EmojiPicker from 'emoji-picker-react'
-import { FaSmile, FaImage, FaTimes, FaTrash, FaExpand, FaDownload } from "react-icons/fa"
+import React, { useState, useRef, useEffect } from 'react';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
+import useUserStore from '../../stores/useUserStore';
+import { toast } from 'react-hot-toast';
+import EmojiPicker from 'emoji-picker-react';
+import { FaSmile, FaImage, FaTimes, FaTrash, FaExpand, FaDownload } from "react-icons/fa";
+import useRealtimeStore from '../../stores/useRealtimeStore';
 
 const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false }) => {
-  const [messages, setMessages] = useState([])
-  const [messageInput, setMessageInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [imageModal, setImageModal] = useState({ isOpen: false, imageUrl: '', imageName: '' })
-  const [contextMenu, setContextMenu] = useState({ isOpen: false, messageId: '', x: 0, y: 0 })
-  const messagesEndRef = useRef(null)
-  const fileInputRef = useRef(null)
-  const { user } = useUserStore()
+  const [messages, setMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageModal, setImageModal] = useState({ isOpen: false, imageUrl: '', imageName: '' });
+  const [contextMenu, setContextMenu] = useState({ isOpen: false, messageId: '', x: 0, y: 0 });
+  const [friendDetails, setFriendDetails] = useState(null);
+  const [currentUserDetails, setCurrentUserDetails] = useState(null);
+  
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  
+  const { user } = useUserStore();
+  const { subscribeToMessages, getFriendById, userProfile } = useRealtimeStore();
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    scrollToBottom();
+  }, [messages]);
 
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
-      setContextMenu({ isOpen: false, messageId: '', x: 0, y: 0 })
+      setContextMenu({ isOpen: false, messageId: '', x: 0, y: 0 });
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Load current user details from realtime store
+  useEffect(() => {
+    if (userProfile) {
+      setCurrentUserDetails({
+        uid: user.uid,
+        name: userProfile.fullName || user.displayName || 'You',
+        profilePic: userProfile.profilePic,
+        email: userProfile.email,
+        bio: userProfile.bio,
+        status: userProfile.status,
+        lastSeen: userProfile.lastSeen
+      });
+    } else {
+      // Fallback to basic user store data
+      setCurrentUserDetails({
+        uid: user.uid,
+        name: user.fullName || user.displayName || 'You',
+        profilePic: user.profilePic,
+        email: user.email,
+        bio: user.bio,
+        status: user.status,
+        lastSeen: user.lastSeen
+      });
+    }
+  }, [userProfile, user]);
+
+  // Extract friend details from selectedFriend
+  useEffect(() => {
+    if (!selectedFriend || !user?.uid) {
+      setFriendDetails(null);
+      return;
     }
 
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
+    try {
+      let friendData = null;
+
+      // Case 1: Direct friend object
+      if (selectedFriend.uid) {
+        friendData = {
+          uid: selectedFriend.uid,
+          name: selectedFriend.fullName || selectedFriend.name || 'Unknown User',
+          profilePic: selectedFriend.profilePic,
+          isOnline: selectedFriend.status === 'online',
+          lastSeen: selectedFriend.lastSeen
+        };
+      }
+      // Case 2: otherParticipant structure
+      else if (selectedFriend.otherParticipant) {
+        friendData = {
+          uid: selectedFriend.otherParticipant.uid,
+          name: selectedFriend.otherParticipant.name || 'Unknown User',
+          profilePic: selectedFriend.otherParticipant.profilePic,
+          isOnline: selectedFriend.otherParticipant.isOnline,
+          lastSeen: selectedFriend.otherParticipant.lastSeen
+        };
+      }
+      // Case 3: Find friend in realtime store using participantsArray
+      else if (selectedFriend.participantsArray) {
+        const otherParticipantId = selectedFriend.participantsArray.find(id => id !== user.uid);
+        if (otherParticipantId) {
+          const friendFromStore = getFriendById(otherParticipantId);
+          if (friendFromStore) {
+            friendData = {
+              uid: friendFromStore.uid,
+              name: friendFromStore.fullName || 'Unknown User',
+              profilePic: friendFromStore.profilePic,
+              isOnline: friendFromStore.status === 'online',
+              lastSeen: friendFromStore.lastSeen
+            };
+          }
+        }
+      }
+
+      // Case 4: If we still don't have friend data, try to get from realtime store using the ID
+      if (!friendData && selectedFriend.id) {
+        const otherParticipantId = selectedFriend.participantsArray?.find(id => id !== user.uid);
+        if (otherParticipantId) {
+          const friendFromStore = getFriendById(otherParticipantId);
+          if (friendFromStore) {
+            friendData = {
+              uid: friendFromStore.uid,
+              name: friendFromStore.fullName || 'Unknown User',
+              profilePic: friendFromStore.profilePic,
+              isOnline: friendFromStore.status === 'online',
+              lastSeen: friendFromStore.lastSeen
+            };
+          }
+        }
+      }
+
+      setFriendDetails(friendData);
+    } catch (error) {
+      console.error('Error extracting friend details:', error);
+      setFriendDetails(null);
+    }
+  }, [selectedFriend, user?.uid, getFriendById]);
 
   // Load messages for the selected chat
   useEffect(() => {
-    if (!selectedFriend?.id || !user?.uid) return
+    if (!selectedFriend?.id || !user?.uid) return;
 
-    setLoading(true)
-    
-    // For one-on-one chats only
-    const chatId = selectedFriend.id
-    const messagesRef = collection(db, "chats", chatId, "messages")
-    const messagesQuery = query(
-      messagesRef,
-      orderBy("timestamp", "asc")
-    )
+    setLoading(true);
 
-    const unsubscribe = onSnapshot(messagesQuery, 
-      (snapshot) => {
-        const messagesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        setMessages(messagesData)
-        setLoading(false)
-      },
-      (error) => {
-        console.error('Error loading messages:', error)
-        toast.error('Failed to load messages')
-        setLoading(false)
-      }
-    )
+    try {
+      const chatId = selectedFriend.id;
 
-    return () => unsubscribe()
-  }, [selectedFriend?.id, user?.uid])
+      const unsubscribe = subscribeToMessages(
+        chatId,
+        (messagesData) => {
+          setMessages(messagesData);
+          setLoading(false);
+        },
+        (error) => {
+          console.error('Error loading messages:', error);
+          toast.error('Failed to load messages');
+          setLoading(false);
+        }
+      );
+
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error('Error setting up message subscription:', error);
+      toast.error('Failed to load messages');
+      setLoading(false);
+    }
+  }, [selectedFriend?.id, user?.uid, subscribeToMessages]);
 
   // Handle emoji click
   const handleEmojiClick = (emojiData) => {
-    setMessageInput(prev => prev + emojiData.emoji)
-    setShowEmojiPicker(false)
-  }
+    try {
+      setMessageInput(prev => prev + emojiData.emoji);
+      setShowEmojiPicker(false);
+    } catch (error) {
+      console.error('Error handling emoji click:', error);
+    }
+  };
 
   // Handle image selection
   const handleImageSelect = (event) => {
-    const file = event.target.files[0]
-    if (file) {
-      // Check if file is an image
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Validate file type
       if (!file.type.startsWith('image/')) {
-        toast.error('Please select an image file')
-        return
+        toast.error('Please select an image file');
+        return;
       }
 
-      // Check file size (max 5MB)
+      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size should be less than 5MB')
-        return
+        toast.error('Image size should be less than 5MB');
+        return;
       }
 
-      setSelectedImage(file)
-      
+      setSelectedImage(file);
+
       // Create preview
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        setImagePreview(e.target.result)
-      }
-      reader.readAsDataURL(file)
+        setImagePreview(e.target.result);
+      };
+      reader.onerror = () => {
+        toast.error('Failed to load image preview');
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error handling image selection:', error);
+      toast.error('Failed to select image');
     }
-  }
+  };
 
   // Remove selected image
   const handleRemoveImage = () => {
-    setSelectedImage(null)
-    setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    try {
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error removing image:', error);
     }
-  }
+  };
 
   // Convert image to base64
   const imageToBase64 = (file) => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.readAsDataURL(file)
-      reader.onload = () => resolve(reader.result)
-      reader.onerror = error => reject(error)
-    })
-  }
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  };
 
   // Handle message context menu (right-click)
   const handleMessageContextMenu = (e, message) => {
-    e.preventDefault()
-    
-    // Only allow delete for own messages
-    if (message.senderId === user.uid) {
-      setContextMenu({
-        isOpen: true,
-        messageId: message.id,
-        x: e.clientX,
-        y: e.clientY
-      })
+    try {
+      e.preventDefault();
+
+      // Only allow delete for own messages
+      if (message.senderId === user.uid) {
+        setContextMenu({
+          isOpen: true,
+          messageId: message.id,
+          x: e.clientX,
+          y: e.clientY
+        });
+      }
+    } catch (error) {
+      console.error('Error handling context menu:', error);
     }
-  }
+  };
 
   // Handle delete message
   const handleDeleteMessage = async (messageId) => {
     try {
-      const messageRef = doc(db, "chats", selectedFriend.id, "messages", messageId)
-      await deleteDoc(messageRef)
-      
+      if (!selectedFriend?.id) {
+        toast.error('No chat selected');
+        return;
+      }
+
+      const messageRef = doc(db, "chats", selectedFriend.id, "messages", messageId);
+      await deleteDoc(messageRef);
+
       // Update last message if needed
-      const remainingMessages = messages.filter(msg => msg.id !== messageId)
+      const remainingMessages = messages.filter(msg => msg.id !== messageId);
       if (remainingMessages.length > 0) {
-        const lastMessage = remainingMessages[remainingMessages.length - 1]
-        const chatRef = doc(db, "chats", selectedFriend.id)
+        const lastMessage = remainingMessages[remainingMessages.length - 1];
+        const chatRef = doc(db, "chats", selectedFriend.id);
         await updateDoc(chatRef, {
           lastMessage: lastMessage.type === 'image' ? '📷 Image' : lastMessage.content,
           lastMessageAt: lastMessage.timestamp
-        })
+        });
       }
-      
-      toast.success('Message deleted')
+
+      toast.success('Message deleted');
     } catch (error) {
-      console.error('Error deleting message:', error)
-      toast.error('Failed to delete message')
+      console.error('Error deleting message:', error);
+      toast.error('Failed to delete message');
     } finally {
-      setContextMenu({ isOpen: false, messageId: '', x: 0, y: 0 })
+      setContextMenu({ isOpen: false, messageId: '', x: 0, y: 0 });
     }
-  }
+  };
 
   // Open image in modal
   const handleImageClick = (imageUrl, messageId = '') => {
-    setImageModal({ 
-      isOpen: true, 
-      imageUrl,
-      imageName: `chat-image-${messageId || Date.now()}`
-    })
-  }
+    try {
+      setImageModal({
+        isOpen: true,
+        imageUrl,
+        imageName: `chat-image-${messageId || Date.now()}`
+      });
+    } catch (error) {
+      console.error('Error opening image modal:', error);
+    }
+  };
 
   // Close image modal
   const handleCloseImageModal = () => {
-    setImageModal({ isOpen: false, imageUrl: '', imageName: '' })
-  }
+    setImageModal({ isOpen: false, imageUrl: '', imageName: '' });
+  };
 
   // Handle background click to close modal
   const handleBackgroundClick = (e) => {
     if (e.target === e.currentTarget) {
-      handleCloseImageModal()
+      handleCloseImageModal();
     }
-  }
+  };
 
   // Handle download image
   const handleDownloadImage = async (imageUrl, imageName = 'image') => {
     try {
-      const response = await fetch(imageUrl)
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${imageName}-${Date.now()}.jpg`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      toast.success('Image downloaded successfully')
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error('Failed to fetch image');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${imageName}-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Image downloaded successfully');
     } catch (error) {
-      console.error('Error downloading image:', error)
-      toast.error('Failed to download image')
+      console.error('Error downloading image:', error);
+      toast.error('Failed to download image');
     }
-  }
+  };
 
   // Handle download from modal
   const handleModalDownload = () => {
-    handleDownloadImage(imageModal.imageUrl, imageModal.imageName)
-  }
+    handleDownloadImage(imageModal.imageUrl, imageModal.imageName);
+  };
 
-// In ChatRoom.jsx - Fix the handleSendMessage function
-const handleSendMessage = async () => {
-  if ((messageInput.trim() === '' && !selectedImage) || !selectedFriend?.id || !user?.uid) return;
-
-  setSending(true);
-  try {
-    const messagesRef = collection(db, "chats", selectedFriend.id, "messages");
-    
-    let messageContent = messageInput.trim()
-    let messageType = 'text'
-    let imageData = null
-
-    // If there's an image, convert to base64
-    if (selectedImage) {
-      messageType = 'image'
-      imageData = await imageToBase64(selectedImage)
-      messageContent = '📷 Image'
+  const handleSendMessage = async () => {
+    if ((messageInput.trim() === '' && !selectedImage) || !selectedFriend?.id || !user?.uid) {
+      return;
     }
 
-    // Create message data
-    const messageData = {
-      content: messageContent,
-      type: messageType,
-      senderId: user.uid,
-      timestamp: serverTimestamp(),
-      ...(imageData && { image: imageData })
-    };
+    setSending(true);
+    try {
+      const messagesRef = collection(db, "chats", selectedFriend.id, "messages");
 
-    // Add the message to Firestore - THIS WAS MISSING
-    await addDoc(messagesRef, messageData);
+      let messageContent = messageInput.trim();
+      let messageType = 'text';
+      let imageData = null;
 
-    // Update last message in chat document
-    const chatRef = doc(db, "chats", selectedFriend.id);
-    await updateDoc(chatRef, {
-      lastMessage: messageType === 'image' ? '📷 Image' : messageContent,
-      lastMessageAt: serverTimestamp(),
-      lastUpdated: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+      if (selectedImage) {
+        messageType = 'image';
+        imageData = await imageToBase64(selectedImage);
+        messageContent = '📷 Image';
+      }
 
-    // Reset form
-    setMessageInput('')
-    setSelectedImage(null)
-    setImagePreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      const messageData = {
+        content: messageContent,
+        type: messageType,
+        senderId: user.uid,
+        timestamp: serverTimestamp(),
+        ...(imageData && { image: imageData })
+      };
+
+      await addDoc(messagesRef, messageData);
+
+      const chatRef = doc(db, "chats", selectedFriend.id);
+      await updateDoc(chatRef, {
+        lastMessage: messageType === 'image' ? '📷 Image' : messageContent,
+        lastMessageAt: serverTimestamp(),
+        lastUpdated: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      setMessageInput('');
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    } finally {
+      setSending(false);
     }
-    
-  } catch (error) {
-    console.error('Error sending message:', error);
-    toast.error('Failed to send message');
-  } finally {
-    setSending(false);
-  }
-};
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+      e.preventDefault();
+      handleSendMessage();
     }
-  }
+  };
 
   const formatMessageTime = (timestamp) => {
-    if (!timestamp) return ''
-    
+    if (!timestamp) return '';
+
     try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (error) {
-      return ''
+      console.error('Error formatting message time:', error);
+      return '';
     }
-  }
+  };
 
   const formatMessageDate = (timestamp) => {
-    if (!timestamp) return ''
-    
-    try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-      const now = new Date()
-      const diffTime = Math.abs(now - date)
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (!timestamp) return '';
 
-      if (diffDays === 1) return 'Yesterday'
-      if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' })
-      if (diffDays < 365) return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      if (isNaN(date.getTime())) return '';
       
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const now = new Date();
+      const diffTime = Math.abs(now - date);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+      if (diffDays < 365) return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch (error) {
-      return ''
+      console.error('Error formatting message date:', error);
+      return '';
     }
-  }
+  };
 
   const shouldShowDate = (currentMessage, previousMessage) => {
-    if (!previousMessage) return true
-    
-    const currentDate = currentMessage.timestamp?.toDate?.() || new Date(currentMessage.timestamp)
-    const previousDate = previousMessage.timestamp?.toDate?.() || new Date(previousMessage.timestamp)
-    
-    return currentDate.toDateString() !== previousDate.toDateString()
-  }
+    if (!previousMessage) return true;
+
+    try {
+      const currentDate = currentMessage.timestamp?.toDate?.() || new Date(currentMessage.timestamp);
+      const previousDate = previousMessage.timestamp?.toDate?.() || new Date(previousMessage.timestamp);
+      
+      if (isNaN(currentDate.getTime()) || isNaN(previousDate.getTime())) return true;
+      
+      return currentDate.toDateString() !== previousDate.toDateString();
+    } catch (error) {
+      console.error('Error checking date difference:', error);
+      return true;
+    }
+  };
 
   const getChatName = () => {
-    return selectedFriend?.otherParticipant?.name || 'Unknown User'
-  }
+    return friendDetails?.name || selectedFriend?.name || 'Unknown User';
+  };
 
-  // Get user avatar content
-  const getUserAvatar = (userId, userName, profilePic, isOnline = false) => {
+  const getUserAvatar = (userId, userName, profilePic) => {
     if (profilePic) {
       return (
-        <img 
-          src={profilePic} 
+        <img
+          src={profilePic}
           alt={userName}
           className="w-8 h-8 rounded-full object-cover"
+          onError={(e) => {
+            e.target.style.display = 'none';
+            if (e.target.nextSibling) {
+              e.target.nextSibling.style.display = 'flex';
+            }
+          }}
         />
-      )
+      );
     }
+    
+    const avatarText = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
     return (
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-        userId === user.uid ? 'bg-blue-500' : 'bg-gray-500'
-      }`}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${userId === user.uid ? 'bg-blue-500' : 'bg-gray-500'}`}>
         <span className="text-white text-xs font-medium">
-          {userName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
+          {avatarText}
         </span>
       </div>
-    )
-  }
+    );
+  };
 
-  // Get current user's profile pic
   const getCurrentUserAvatar = () => {
-    return getUserAvatar(user.uid, user.fullName, user.profilePic)
-  }
-
-  // Get friend's profile pic
-  const getFriendAvatar = () => {
+    if (!currentUserDetails) {
+      return (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-500">
+          <span className="text-white text-xs font-medium">Y</span>
+        </div>
+      );
+    }
+    
     return getUserAvatar(
-      selectedFriend?.otherParticipant?.uid,
-      selectedFriend?.otherParticipant?.name,
-      selectedFriend?.otherParticipant?.profilePic,
-      selectedFriend?.otherParticipant?.isOnline
-    )
-  }
+      currentUserDetails.uid,
+      currentUserDetails.name,
+      currentUserDetails.profilePic
+    );
+  };
+
+  const getFriendAvatar = () => {
+    if (!friendDetails) {
+      return (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-500">
+          <span className="text-white text-xs font-medium">U</span>
+        </div>
+      );
+    }
+    
+    return getUserAvatar(
+      friendDetails.uid,
+      friendDetails.name,
+      friendDetails.profilePic
+    );
+  };
+
+  const getOnlineStatus = () => {
+    if (!friendDetails) return 'Offline';
+    return friendDetails.isOnline ? 'Online' : 'Offline';
+  };
 
   if (!selectedFriend) {
     return (
@@ -368,7 +535,7 @@ const handleSendMessage = async () => {
           <p className='text-gray-500 text-sm'>Select a conversation to start messaging</p>
         </div>
       </section>
-    )
+    );
   }
 
   return (
@@ -378,7 +545,7 @@ const handleSendMessage = async () => {
         <div className='flex items-center space-x-3'>
           {/* Back Button for Mobile */}
           {showBackButton && (
-            <button 
+            <button
               onClick={onBack}
               className='p-2 text-gray-500 hover:text-gray-700 transition-colors lg:hidden'
             >
@@ -387,8 +554,8 @@ const handleSendMessage = async () => {
               </svg>
             </button>
           )}
-          
-          <div 
+
+          <div
             onClick={onOpenDetail}
             className='flex items-center space-x-3 flex-1 cursor-pointer'
           >
@@ -396,24 +563,14 @@ const handleSendMessage = async () => {
             <div className='flex-1'>
               <h3 className='font-semibold text-gray-800'>{getChatName()}</h3>
               <p className='text-xs text-gray-500'>
-                {selectedFriend?.otherParticipant?.isOnline ? 'Online' : 'Offline'}
+                {getOnlineStatus()}
               </p>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className='flex items-center space-x-2'>
-            <button className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors'>
-              <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' />
-              </svg>
-            </button>
-            <button className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors'>
-              <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' />
-              </svg>
-            </button>
-            <button 
+            <button
               onClick={onOpenDetail}
               className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors lg:hidden'
             >
@@ -445,9 +602,9 @@ const handleSendMessage = async () => {
         ) : (
           <div className='space-y-4'>
             {messages.map((message, index) => {
-              const showDate = shouldShowDate(message, messages[index - 1])
-              const isOwnMessage = message.senderId === user.uid
-              const showAvatar = index === 0 || messages[index - 1]?.senderId !== message.senderId
+              const showDate = shouldShowDate(message, messages[index - 1]);
+              const isOwnMessage = message.senderId === user.uid;
+              const showAvatar = index === 0 || messages[index - 1]?.senderId !== message.senderId;
 
               return (
                 <div key={message.id}>
@@ -459,9 +616,9 @@ const handleSendMessage = async () => {
                       </span>
                     </div>
                   )}
-                  
+
                   {/* Message */}
-                  <div 
+                  <div
                     className={`flex items-end space-x-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                     onContextMenu={(e) => handleMessageContextMenu(e, message)}
                   >
@@ -471,7 +628,7 @@ const handleSendMessage = async () => {
                         {getFriendAvatar()}
                       </div>
                     )}
-                    
+
                     {/* Spacer for own messages to align properly */}
                     {isOwnMessage && !showAvatar && (
                       <div className="w-8"></div>
@@ -489,15 +646,19 @@ const handleSendMessage = async () => {
                         {/* Image message */}
                         {message.type === 'image' && message.image && (
                           <div className="mb-2 relative">
-                            <img 
-                              src={message.image} 
+                            <img
+                              src={message.image}
                               alt="Sent image"
                               className="max-w-full h-auto rounded-lg max-h-64 object-cover cursor-pointer"
                               onClick={() => handleImageClick(message.image, message.id)}
+                              onError={(e) => {
+                                console.error('Error loading image:', message.id);
+                                e.target.style.display = 'none';
+                              }}
                             />
                             {/* Expand icon overlay */}
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
+                              <button
                                 onClick={() => handleImageClick(message.image, message.id)}
                                 className="bg-black bg-opacity-50 cursor-pointer text-white p-1 rounded-full hover:bg-opacity-70"
                               >
@@ -506,10 +667,10 @@ const handleSendMessage = async () => {
                             </div>
                             {/* Download icon overlay */}
                             <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
+                              <button
                                 onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDownloadImage(message.image, `chat-image-${message.id}`)
+                                  e.stopPropagation();
+                                  handleDownloadImage(message.image, `chat-image-${message.id}`);
                                 }}
                                 className="bg-black bg-opacity-50 cursor-pointer text-white p-1 rounded-full hover:bg-opacity-70"
                                 title="Download image"
@@ -519,12 +680,12 @@ const handleSendMessage = async () => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Text message */}
                         {message.content && message.type !== 'image' && (
                           <p className='text-sm whitespace-pre-wrap break-words'>{message.content}</p>
                         )}
-                        
+
                         <p className={`text-xs mt-1 ${
                           isOwnMessage ? 'text-blue-100' : 'text-gray-500'
                         }`}>
@@ -550,14 +711,14 @@ const handleSendMessage = async () => {
                         {getCurrentUserAvatar()}
                       </div>
                     )}
-                    
+
                     {/* Spacer for other user's messages to align properly */}
                     {!isOwnMessage && !showAvatar && (
                       <div className="w-8"></div>
                     )}
                   </div>
                 </div>
-              )
+              );
             })}
             <div ref={messagesEndRef} />
           </div>
@@ -568,9 +729,9 @@ const handleSendMessage = async () => {
       {imagePreview && (
         <div className="p-4 border-t border-gray-200 bg-white">
           <div className="relative inline-block">
-            <img 
-              src={imagePreview} 
-              alt="Preview" 
+            <img
+              src={imagePreview}
+              alt="Preview"
               className="max-w-xs h-auto rounded-lg max-h-32 object-cover"
             />
             <button
@@ -585,7 +746,7 @@ const handleSendMessage = async () => {
 
       {/* Context Menu */}
       {contextMenu.isOpen && (
-        <div 
+        <div
           className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
@@ -600,37 +761,41 @@ const handleSendMessage = async () => {
       )}
 
       {/* Image Modal */}
-            {imageModal.isOpen && (
-              <div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-90 flex items-center justify-center z-50 p-4"
-                onClick={handleBackgroundClick}
-              >
-                <div className="relative max-w-4xl max-h-full">
-                  <img 
-                    src={imageModal.imageUrl} 
-                    alt="Full size" 
-                    className="max-w-full max-h-full object-contain"
-                  />
-                  
-                  {/* Download Button */}
-                  <button
-                    onClick={handleModalDownload}
-                    className="absolute bottom-4 right-4 cursor-pointer bg-black bg-opacity-50 text-white rounded-full p-3 hover:bg-opacity-70 transition-colors"
-                    title="Download image"
-                  >
-                    <FaDownload className="w-5 h-5" />
-                  </button>
-                  
-                </div>
-              </div>
-            )}
+      {imageModal.isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={handleBackgroundClick}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <img
+              src={imageModal.imageUrl}
+              alt="Full size"
+              className="max-w-full max-h-full object-contain"
+              onError={(e) => {
+                console.error('Error loading modal image:', imageModal.imageUrl);
+                toast.error('Failed to load image');
+                handleCloseImageModal();
+              }}
+            />
+            
+            {/* Download Button */}
+            <button
+              onClick={handleModalDownload}
+              className="absolute bottom-4 right-4 cursor-pointer bg-black bg-opacity-50 text-white rounded-full p-3 hover:bg-opacity-70 transition-colors"
+              title="Download image"
+            >
+              <FaDownload className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Message Input */}
       <div className='border-t border-gray-200 p-4 bg-white'>
         <div className='flex items-end space-x-3'>
           {/* Emoji Picker Button */}
           <div className="relative">
-            <button 
+            <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0'
             >
@@ -650,7 +815,7 @@ const handleSendMessage = async () => {
           </div>
 
           {/* Image Upload Button */}
-          <button 
+          <button
             onClick={() => fileInputRef.current?.click()}
             className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0'
           >
@@ -677,7 +842,7 @@ const handleSendMessage = async () => {
           </div>
 
           {/* Send Button */}
-          <button 
+          <button
             onClick={handleSendMessage}
             disabled={(!messageInput.trim() && !selectedImage) || sending}
             className={`p-2 rounded-full transition-colors flex-shrink-0 ${
@@ -705,7 +870,7 @@ const handleSendMessage = async () => {
         />
       )}
     </section>
-  )
-}
+  );
+};
 
-export default ChatRoom
+export default ChatRoom;
