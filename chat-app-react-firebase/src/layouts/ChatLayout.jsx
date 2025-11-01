@@ -35,33 +35,7 @@ const ChatLayout = () => {
       <Suspense fallback={<PageLoading />}>
         {loading && !isSubscribed ? <PageLoading /> : <Outlet />}
       </Suspense>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#000',
-            color: '#fff',
-            borderRadius: '4px',
-            padding: '12px 16px',
-            fontSize: '0.95rem',
-            fontWeight: 500,
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-          },
-          success: {
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#000',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#000',
-            },
-          },
-        }}
-      />
+     
     </main>
   );
 };

@@ -164,16 +164,10 @@ const ChatList = ({ onSelectChat, handleSetActiveView }) => {
 
                                     <div className='flex flex-row gap-3 justify-center'>
                                         <button
-                                            onClick={() => handleSetActiveView('friends')}
-                                            className='w-32 px-4 py-3 bg-white text-gray-700 border border-gray-200 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-black hover:text-white hover:border-gray-300 shadow-sm hover:shadow-md font-medium'
-                                        >
-                                            Find Friends
-                                        </button>
-                                        <button
                                             onClick={() => handleSetActiveView('search')}
                                             className='w-32 px-4 py-3 bg-white text-gray-700 border border-gray-200 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-black hover:text-white hover:border-gray-300 shadow-sm hover:shadow-md font-medium'
                                         >
-                                            Search Users
+                                            Search Friends
                                         </button>
                                     </div>
                                 </>
