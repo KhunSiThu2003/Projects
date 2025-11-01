@@ -1,23 +1,21 @@
-// ChatPage.jsx - Updated real-time chat listener
 import React, { useState, useEffect, useCallback } from 'react'
 import ChatRoom from '../../components/chat/ChatRoom'
 import ChatDetail from '../../components/chat/ChatDetail'
 import ChatSideBar from '../../components/chat/ChatSideBar'
 import useUserStore from '../../stores/useUserStore'
 import useRealtimeStore from '../../stores/useRealtimeStore'
-import { setUserOffline, setupActivityTracking, cleanupActivityTracking } from '../../services/user'
 
 const ChatPage = () => {
   const [currentView, setCurrentView] = useState('chatsidebar')
   const [selectedChat, setSelectedChat] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const { user } = useUserStore()
-  const { chats, subscribeToAllData, getChatById } = useRealtimeStore()
+  const { chats, getChatById } = useRealtimeStore()
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024)
+      setIsMobile(window.innerWidth < 900)
     }
 
     checkScreenSize()
@@ -27,27 +25,6 @@ const ChatPage = () => {
       window.removeEventListener('resize', checkScreenSize)
     }
   }, [])
-
-  // Setup activity tracking when user is on chat page
-  useEffect(() => {
-    if (user?.uid) {
-      setupActivityTracking(user.uid);
-    }
-
-    return () => {
-      if (user?.uid) {
-        cleanupActivityTracking(user.uid);
-      }
-    };
-  }, [user?.uid]);
-
-  // Setup real-time subscriptions
-  useEffect(() => {
-    if (user?.uid) {
-      const unsubscribe = subscribeToAllData(user.uid)
-      return unsubscribe
-    }
-  }, [user?.uid, subscribeToAllData])
 
   // Handle chat selection from any component
   const handleSelectChat = useCallback((chat) => {
@@ -83,7 +60,7 @@ const ChatPage = () => {
     const updatedChat = getChatById(selectedChat.id)
     if (updatedChat) {
       // Check if important data has changed
-      const hasImportantChanges = 
+      const hasImportantChanges =
         updatedChat.participants?.length !== selectedChat.participants?.length ||
         updatedChat.lastMessage !== selectedChat.lastMessage ||
         updatedChat.lastMessageAt?.toDate?.()?.getTime() !== selectedChat.lastMessageAt?.toDate?.()?.getTime() ||
@@ -101,32 +78,11 @@ const ChatPage = () => {
     }
   }, [chats, selectedChat?.id, getChatById])
 
-  // Alternative approach: More granular updates using store subscriptions
-  useEffect(() => {
-    if (!selectedChat?.id) return
-
-    // This effect will run whenever the chats in the store update
-    // and automatically keep the selectedChat in sync
-    const currentChatInStore = getChatById(selectedChat.id)
-    
-    if (currentChatInStore && currentChatInStore !== selectedChat) {
-      // Only update if there are meaningful changes
-      const shouldUpdate = 
-        currentChatInStore.lastMessage !== selectedChat.lastMessage ||
-        currentChatInStore.lastMessageAt !== selectedChat.lastMessageAt ||
-        currentChatInStore.otherParticipant?.isOnline !== selectedChat.otherParticipant?.isOnline
-
-      if (shouldUpdate) {
-        setSelectedChat(currentChatInStore)
-      }
-    }
-  }, [chats, selectedChat, getChatById])
-
   // For desktop - show all three columns
   if (!isMobile) {
     return (
       <div className='flex h-screen bg-gray-50'>
-        <div className='w-110 flex-shrink-0 border-r border-gray-200'>
+        <div className='flex-shrink-0 border-r border-gray-200'>
           <ChatSideBar setIsProfileModalOpen={setIsProfileModalOpen} onSelectChat={handleSelectChat} />
         </div>
         {selectedChat ? (
@@ -137,7 +93,7 @@ const ChatPage = () => {
                 onOpenDetail={handleOpenDetail}
               />
             </div>
-            <div className="w-80 flex-shrink-0 border-l border-gray-200">
+            <div className="md:max-w-80 flex-shrink-0 border-l border-gray-200">
               <ChatDetail setSelectedChat={setSelectedChat} selectedFriend={selectedChat} />
             </div>
           </>

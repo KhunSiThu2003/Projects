@@ -3,12 +3,17 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { RegisterWithEmailAndPassword, RegisterWithGoogle } from '../../services/auth';
+import useUserStore from '../../stores/useUserStore';
+import useCookie from 'react-use-cookie';
+import { getUserById } from '../../services/user';
 
 export const useRegister = () => {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [userCookie, setUserCookie] = useCookie("user");
+    const { setUser } = useUserStore();
 
     const {
         register,
@@ -55,9 +60,20 @@ export const useRegister = () => {
             const result = await RegisterWithGoogle();
 
             if (result.success) {
-                navigate('/chat');
+                const userData = await getUserById(result.user.uid);
+                if (userData) {
+                    setUser(userData);
+                    setUserCookie(JSON.stringify(userData), { 
+                        days: 30,
+                        path: '/'
+                    });
+                    toast.success('Welcome! Account created successfully.');
+                    navigate('/chat');
+                } else {
+                    toast.error('Failed to load user data');
+                }
             } else {
-                toast.error(result.message);
+                toast.error(result.message || 'Google registration failed');
             }
         } catch (err) {
             console.error("Unexpected error:", err);

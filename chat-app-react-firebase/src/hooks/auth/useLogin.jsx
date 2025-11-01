@@ -4,11 +4,14 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import useCookie from 'react-use-cookie';
 import { LoginWithEmailAndPassword, LoginWithGoogle } from '../../services/auth';
+import { getUserById } from '../../services/user';
+import useUserStore from '../../stores/useUserStore';
 
 export const useLogin = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [userCookie, setUserCookie] = useCookie("user");
+    const { setUser } = useUserStore();
     const navigate = useNavigate();
 
     const {
@@ -23,17 +26,28 @@ export const useLogin = () => {
             const result = await LoginWithEmailAndPassword(data.email, data.password);
 
             if (result.success) {
-
                 if (result.needsVerification) {
                     toast.success(result.message || "Logged in! Please verify your email.");
                     navigate('/verify-email', {
                         state: { email: result.user.email }
                     });
                 } else {
-                    setUserCookie(JSON.stringify(result.user));
+                    // Properly handle user data
+                    const userData = await getUserById(result.user.uid);
+                    if (userData) {
+                        setUser(userData);
+                        setUserCookie(JSON.stringify(userData), { 
+                            days: 30,
+                            path: '/'
+                        });
+                        toast.success('Welcome back!');
+                        navigate('/chat');
+                    } else {
+                        toast.error('Failed to load user data');
+                    }
                 }
             } else {
-                toast.error(result.message);
+                toast.error(result.message || 'Login failed');
             }
         } catch (err) {
             console.error("Unexpected login error:", err);
@@ -49,14 +63,17 @@ export const useLogin = () => {
             const result = await LoginWithGoogle();
 
             if (result.success) {
-                setUserCookie(JSON.stringify({
-                    uid: result.user.uid,
-                    email: result.user.email,
-                    isVerified: result.user.emailVerified
-                }));
-                navigate('/chat');
+                const userData = await getUserById(result.user.uid);
+                if (userData) {
+                    setUser(userData);
+                    setUserCookie(JSON.stringify(userData));
+                    toast.success('Welcome back!');
+                    navigate('/chat');
+                } else {
+                    toast.error('Failed to load user data');
+                }
             } else {
-                toast.error(result.message);
+                toast.error(result.message || 'Google login failed');
             }
         } catch (err) {
             console.error("Unexpected Google login error:", err);

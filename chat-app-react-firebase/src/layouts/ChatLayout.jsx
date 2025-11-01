@@ -1,38 +1,39 @@
-// ChatLayout.jsx - Complete real-time data subscription
 import { Outlet } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { Suspense, useEffect } from "react";
 import PageLoading from "../components/PageLoading";
 import useUserStore from "../stores/useUserStore";
 import useRealtimeStore from "../stores/useRealtimeStore";
+import { useNavigate } from "react-router-dom";
+import { setupActivityTracking, cleanupActivityTracking } from "../services/user";
 
 const ChatLayout = () => {
   const { user } = useUserStore();
-  const { subscribeToAllData, clearAllData, loading } = useRealtimeStore();
+  const { subscribeToAllData, clearAllData, loading, isSubscribed } = useRealtimeStore();
+  const navigate = useNavigate();
 
-  // Single real-time subscription for all data
   useEffect(() => {
     if (!user?.uid) {
       clearAllData();
+      navigate('/');
       return;
     }
-
-    console.log('🔄 Subscribing to all real-time data for user:', user.uid);
-
-    // Subscribe to all real-time data
+    
+    const cleanupActivity = setupActivityTracking(user.uid);
+    
     const unsubscribe = subscribeToAllData(user.uid);
-
-    // Cleanup subscription on unmount or user change
+    
     return () => {
-      console.log('🧹 Cleaning up real-time subscriptions');
+      cleanupActivity();
       unsubscribe();
+      cleanupActivityTracking(user.uid);
     };
-  }, [user?.uid, clearAllData, subscribeToAllData]);
+  }, [user?.uid, clearAllData, subscribeToAllData, navigate]);
 
   return (
     <main className="min-h-screen bg-gray-100">
       <Suspense fallback={<PageLoading />}>
-        {loading ? <PageLoading /> : <Outlet />}
+        {loading && !isSubscribed ? <PageLoading /> : <Outlet />}
       </Suspense>
       <Toaster
         position="top-right"
@@ -49,7 +50,7 @@ const ChatLayout = () => {
           },
           success: {
             iconTheme: {
-              primary: '#22c55e',               
+              primary: '#22c55e',
               secondary: '#000',
             },
           },

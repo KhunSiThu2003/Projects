@@ -8,8 +8,10 @@ import {
   query, 
   where, 
   getDocs,
-  orderBy, 
-  limit
+  limit,
+  updateDoc,
+  deleteDoc,
+  arrayRemove
 } from "firebase/firestore";
 import { db, auth } from "../firebase/config";
 
@@ -269,5 +271,87 @@ export const getUsersByIds = async (userIds) => {
   } catch (error) {
     console.error('Error getting users by IDs:', error);
     return { success: false, error: error.message, users: [] };
+  }
+};
+
+// user.js - Add deleteUserAccount function
+// Add this function to your existing user.js file
+
+/**
+ * Delete user account and all associated data
+ */
+export const deleteUserAccount = async (userId) => {
+  try {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // TODO: Implement comprehensive data deletion
+    // This should include:
+    
+    // 1. Delete user document
+    const userRef = doc(db, "users", userId);
+    await deleteDoc(userRef);
+
+    // 2. Delete all user's chat messages
+    const messagesQuery = query(
+      collection(db, "messages"),
+      where("senderId", "==", userId)
+    );
+    const messagesSnapshot = await getDocs(messagesQuery);
+    const messageDeletions = messagesSnapshot.docs.map(doc =>
+      deleteDoc(doc.ref)
+    );
+
+    // 3. Delete all friend requests involving the user
+    const requestsQuery = query(
+      collection(db, "friendRequests"),
+      where("fromUserId", "==", userId)
+    );
+    const requestsSnapshot = await getDocs(requestsQuery);
+    const requestDeletions = requestsSnapshot.docs.map(doc =>
+      deleteDoc(doc.ref)
+    );
+
+    // 4. Delete user from friends lists
+    const friendsQuery = query(
+      collection(db, "users"),
+      where("friends", "array-contains", userId)
+    );
+    const friendsSnapshot = await getDocs(friendsQuery);
+    const friendUpdates = friendsSnapshot.docs.map(doc =>
+      updateDoc(doc.ref, {
+        friends: arrayRemove(userId)
+      })
+    );
+
+    // 5. Delete blocked users data
+    const blockedQuery = query(
+      collection(db, "blockedUsers"),
+      where("blockedBy", "==", userId)
+    );
+    const blockedSnapshot = await getDocs(blockedQuery);
+    const blockedDeletions = blockedSnapshot.docs.map(doc =>
+      deleteDoc(doc.ref)
+    );
+
+    // Wait for all deletions to complete
+    await Promise.all([
+      ...messageDeletions,
+      ...requestDeletions,
+      ...friendUpdates,
+      ...blockedDeletions
+    ]);
+
+
+    const user = auth.currentUser;
+    if (user) {
+      await user.delete();
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting user account:', error);
+    return { success: false, error: error.message };
   }
 };

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  doc, 
-  deleteDoc, 
-  writeBatch, 
-  updateDoc, 
-  serverTimestamp, 
+import {
+  doc,
+  deleteDoc,
+  writeBatch,
+  updateDoc,
+  serverTimestamp,
   collection,
   query,
   orderBy,
@@ -25,7 +25,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
   const [actionLoading, setActionLoading] = useState({});
   const [activeTab, setActiveTab] = useState('info');
   const [imageModal, setImageModal] = useState({ isOpen: false, imageUrl: '', imageName: '' });
-  
+
   const { user } = useUserStore();
   const { friends, chats, getFriendById, getChatById, subscribeToMessages } = useRealtimeStore();
 
@@ -100,7 +100,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
   useEffect(() => {
     if (!selectedFriend?.id || activeTab !== 'media') return;
 
-    let unsubscribe = () => {};
+    let unsubscribe = () => { };
 
     try {
       unsubscribe = subscribeToMessages(
@@ -147,7 +147,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     try {
       // Method 1: Try to get chat with messages from realtime store
       const chat = getChatById(chatId);
-      
+
       if (chat?.messages && Array.isArray(chat.messages)) {
         // Filter for image messages and sort by latest first
         const imageMessages = chat.messages
@@ -165,7 +165,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       // Method 2: If chat doesn't have messages, try to fetch directly from Firestore
       console.log('Chat messages not found in store, media will load via subscription');
       setMediaMessages([]);
-      
+
     } catch (error) {
       console.error('Error loading media messages:', error);
       toast.error('Failed to load media');
@@ -261,7 +261,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       // Use batch delete for better performance
       const batch = writeBatch(db);
-      
+
       messagesSnapshot.docs.forEach((doc) => {
         batch.delete(doc.ref);
       });
@@ -279,11 +279,11 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       // Clear media messages in UI
       setMediaMessages([]);
-      
+
       toast.success('All messages deleted successfully');
     } catch (error) {
       console.error('Error deleting all messages:', error);
-      
+
       // More specific error messages
       if (error.code === 'permission-denied') {
         toast.error('You do not have permission to delete these messages');
@@ -301,7 +301,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     try {
       const response = await fetch(imageUrl);
       if (!response.ok) throw new Error('Failed to fetch image');
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -320,8 +320,8 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
   // Open image in modal
   const handleImageClick = (imageUrl, messageId = '') => {
-    setImageModal({ 
-      isOpen: true, 
+    setImageModal({
+      isOpen: true,
       imageUrl,
       imageName: `chat-image-${messageId || Date.now()}`
     });
@@ -346,16 +346,16 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
   const formatLastSeen = (lastSeen) => {
     if (!lastSeen) return 'Long time ago';
-    
+
     try {
       const now = new Date();
       const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
-      
+
       // Check if date is valid
       if (isNaN(lastSeenDate.getTime())) {
         return 'Long time ago';
       }
-      
+
       const diffMs = now - lastSeenDate;
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
@@ -365,7 +365,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       if (diffMins < 60) return `${diffMins}m ago`;
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays < 7) return `${diffDays}d ago`;
-      
+
       return lastSeenDate.toLocaleDateString();
     } catch (error) {
       return 'Unknown';
@@ -374,11 +374,11 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
   const formatMediaDate = (timestamp) => {
     if (!timestamp) return '';
-    
+
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return '';
-      
+
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -395,10 +395,10 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     if (friendDetails.profilePic) {
       return (
         <>
-          <img 
-            src={friendDetails.profilePic} 
+          <img
+            src={friendDetails.profilePic}
             alt={friendDetails.name}
-            className="w-20 h-20 rounded-full object-cover"
+            className="w-20 h-20 rounded border border-gray-200 object-cover"
             onError={(e) => {
               e.target.style.display = 'none';
               const fallback = e.target.nextSibling;
@@ -407,8 +407,8 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
               }
             }}
           />
-          <div 
-            className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center hidden"
+          <div
+            className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-600 rounded border border-gray-200 flex items-center justify-center hidden"
             style={{ display: 'none' }}
           >
             <span className="text-white text-xl font-bold">
@@ -418,7 +418,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         </>
       );
     }
-    
+
     const avatarText = friendDetails.name ? friendDetails.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
     return (
       <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
@@ -460,7 +460,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     <section className='w-full bg-white border-l border-gray-200 overflow-y-auto h-full'>
       {/* Header with Back Button for Mobile */}
       <div className='p-4 border-b border-gray-200 flex items-center space-x-3 lg:hidden'>
-        <button 
+        <button
           onClick={onBack}
           className='p-2 text-gray-500 hover:text-gray-700 transition-colors'
         >
@@ -479,7 +479,17 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
           </div>
           <h2 className='text-xl font-semibold text-gray-800 mb-1'>{friendDetails.name}</h2>
           <div className='flex items-center justify-center space-x-2 mb-3'>
-            <span className={`w-2 h-2 rounded-full ${friendDetails.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            <span className="relative flex h-3 w-3">
+              {friendDetails.isOnline ? (
+                <>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </>
+              ) : (
+                <span className="inline-flex rounded-full h-3 w-3 bg-gray-400"></span>
+              )}
+            </span>
+
             <span className='text-sm text-gray-500'>
               {friendDetails.isOnline ? 'Online' : `Last seen ${formatLastSeen(friendDetails.lastSeen)}`}
             </span>
@@ -501,7 +511,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
             onClick={() => setActiveTab('media')}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'media' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
-            Media ({mediaMessages.length})
+            Media
           </button>
         </div>
       </div>
@@ -547,7 +557,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
               <h3 className='text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4'>
                 Chat Actions
               </h3>
-              
+
               <button
                 onClick={handleDeleteAllMessages}
                 disabled={actionLoading.deleteAll}
@@ -598,7 +608,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
             <h3 className='text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4'>
               Shared Media
             </h3>
-            
+
             {mediaLoading ? (
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3, 4, 5, 6].map((skeleton) => (
@@ -612,15 +622,15 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
                 </div>
                 <h4 className="text-lg font-semibold text-gray-700 mb-2">No Media Shared</h4>
                 <p className="text-gray-500 text-sm">
-                  {selectedFriend?.id ? 
-                    "No images shared in this chat yet" : 
+                  {selectedFriend?.id ?
+                    "No images shared in this chat yet" :
                     "Unable to load media"
                   }
                 </p>
                 {selectedFriend?.id && (
                   <button
                     onClick={() => loadMediaMessages(selectedFriend.id)}
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+                    className="mt-4 px-4 py-2 bg-black text-white rounded transition-colors text-sm"
                   >
                     Refresh Media
                   </button>
@@ -640,17 +650,17 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
                         e.target.style.display = 'none';
                       }}
                     />
-                    
+
                     {/* Expand icon overlay */}
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => handleImageClick(message.image, message.id)}
                         className="bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
                       >
                         <FaExpand className="w-3 h-3" />
                       </button>
                     </div>
-                    
+
                     {/* Download button overlay */}
                     <button
                       onClick={(e) => {
@@ -662,7 +672,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
                     >
                       <FaDownload className="w-3 h-3" />
                     </button>
-                    
+
                     {/* Timestamp overlay */}
                     <div className="absolute bottom-1 left-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                       {formatMediaDate(message.timestamp)}
@@ -677,14 +687,14 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       {/* Image Modal */}
       {imageModal.isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm bg-opacity-90 flex items-center justify-center z-50 p-4"
           onClick={handleBackgroundClick}
         >
           <div className="relative max-w-4xl max-h-full">
-            <img 
-              src={imageModal.imageUrl} 
-              alt="Full size" 
+            <img
+              src={imageModal.imageUrl}
+              alt="Full size"
               className="max-w-full max-h-full object-contain"
               onError={(e) => {
                 console.error('Error loading modal image:', imageModal.imageUrl);
@@ -692,7 +702,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
                 handleCloseImageModal();
               }}
             />
-            
+
             {/* Download Button */}
             <button
               onClick={handleModalDownload}
@@ -701,7 +711,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
             >
               <FaDownload className="w-5 h-5" />
             </button>
-            
+
             {/* Close Button */}
             <button
               onClick={handleCloseImageModal}

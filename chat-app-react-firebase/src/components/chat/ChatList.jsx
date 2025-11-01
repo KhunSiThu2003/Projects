@@ -17,12 +17,12 @@ const ChatList = ({ onSelectChat, handleSetActiveView }) => {
         activeChat,
         processedChats,
         subscribeToAllData,
-        processChats, 
-        chats, 
-        friends, 
+        processChats,
+        chats,
+        friends,
     } = useChatList();
 
-   
+
     useEffect(() => {
         processChats();
     }, [chats, user?.uid, processChats]);
@@ -37,10 +37,10 @@ const ChatList = ({ onSelectChat, handleSetActiveView }) => {
                 const chatName = chat.name?.toLowerCase() || ''
                 const lastMessage = chat.lastMessage?.toLowerCase() || ''
                 const otherParticipantName = chat.otherParticipant?.name?.toLowerCase() || ''
-                
-                return chatName.includes(searchLower) || 
-                       lastMessage.includes(searchLower) ||
-                       otherParticipantName.includes(searchLower)
+
+                return chatName.includes(searchLower) ||
+                    lastMessage.includes(searchLower) ||
+                    otherParticipantName.includes(searchLower)
             })
             setFilteredChats(filtered)
         }
@@ -61,7 +61,7 @@ const ChatList = ({ onSelectChat, handleSetActiveView }) => {
     }, [onSelectChat, setActiveChat])
 
     return (
-        <div className='flex flex-col h-full bg-white'>
+        <div className='flex flex-col h-full bg-white lg:max-w-90'>
             <div className='p-6 border-b border-gray-100'>
                 <div className='flex items-center justify-between mb-4'>
                     <div>
@@ -185,11 +185,10 @@ const ChatList = ({ onSelectChat, handleSetActiveView }) => {
                                 <div
                                     key={chat.id}
                                     onClick={() => handleChatClick(chat)}
-                                    className={`group p-4 rounded-md cursor-pointer transition-all duration-200 border ${
-                                        activeChat === chat.id
+                                    className={`group p-4 rounded-md cursor-pointer transition-all duration-200 border ${activeChat === chat.id
                                         ? 'bg-blue-50 border-blue-200 shadow-lg scale-[1.02]'
                                         : 'border-gray-100 hover:bg-gray-50 hover:border-blue-100 hover:shadow-md'
-                                    }`}
+                                        }`}
                                 >
                                     <div className='flex items-start space-x-3'>
                                         <div className='relative flex-shrink-0'>

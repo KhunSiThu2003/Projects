@@ -9,7 +9,6 @@ import SideBar from './SideBar'
 const ChatSideBar = React.memo(({ onSelectChat,setIsProfileModalOpen }) => {
   const [activeView, setActiveView] = useState("chats")
 
-  // Set global callback for chat selection from any component
   React.useEffect(() => {
     window.chatSelectCallback = onSelectChat
     return () => {
