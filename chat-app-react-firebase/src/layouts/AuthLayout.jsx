@@ -16,7 +16,7 @@ const AuthLayout = () => {
         const userData = JSON.parse(userCookie);
         if (userData.uid && userData.email) {
           setUser(userData);         
-          if (userData.emailVerified) {
+          if (userData) {
             navigate("/chat");
           }
         }
