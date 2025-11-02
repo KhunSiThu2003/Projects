@@ -68,10 +68,10 @@ const ChatLayout = () => {
         const previousUnread = previousChat.unreadCount[user.uid] || 0;
         const currentUnread = chat.unreadCount[user.uid] || 0;
         
-        if (currentUnread > previousUnread && messageSoundRef.current) {
+        if (currentUnread > previousUnread && notiSoundRef.current) {
           try {
-            messageSoundRef.current.currentTime = 0;
-            messageSoundRef.current.play().catch(error => {
+            notiSoundRef.current.currentTime = 0;
+            notiSoundRef.current.play().catch(error => {
               console.log('Could not play notification sound:', error);
             });
           } catch (error) {
@@ -86,12 +86,17 @@ const ChatLayout = () => {
   }, [chats, user?.uid]);
 
   useEffect(() => {
-    if (!user?.uid || previousFriendRequestsRef.current.length === 0) {
+    if (!user?.uid) {
       previousFriendRequestsRef.current = receivedFriendRequests;
       return;
     }
 
-    if (receivedFriendRequests.length > previousFriendRequestsRef.current.length && notiSoundRef.current) {
+    // Check if friend requests count increased
+    const previousCount = previousFriendRequestsRef.current?.length || 0;
+    const currentCount = receivedFriendRequests?.length || 0;
+
+    // Play sound when count increases (new friend request received)
+    if (currentCount > previousCount && notiSoundRef.current) {
       try {
         notiSoundRef.current.currentTime = 0;
         notiSoundRef.current.play().catch(error => {
@@ -102,6 +107,7 @@ const ChatLayout = () => {
       }
     }
     
+    // Update previous reference
     previousFriendRequestsRef.current = receivedFriendRequests;
   }, [receivedFriendRequests, user?.uid]);
 

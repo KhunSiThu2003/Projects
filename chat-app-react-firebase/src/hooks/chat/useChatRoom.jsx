@@ -3,6 +3,7 @@ import { collection, addDoc, doc, updateDoc, serverTimestamp, deleteDoc, increme
 import { db } from '../../firebase/config';
 import useUserStore from '../../stores/useUserStore';
 import useRealtimeStore from '../../stores/useRealtimeStore';
+import messageSoundSrc from '../../assets/sounds/message-send.mp3';
 
 export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton = false) => {
   const [messages, setMessages] = useState([]);
@@ -18,9 +19,24 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageSoundRef = useRef(null);
+  const lastMessageIdRef = useRef(null);
   
   const { user } = useUserStore();
   const { subscribeToMessages, getFriendById, userProfile } = useRealtimeStore();
+
+  // Initialize message send sound
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Audio) {
+      try {
+        const messageSound = new Audio();
+        messageSound.src = messageSoundSrc;
+        messageSoundRef.current = messageSound;
+      } catch (error) {
+        console.error('Error loading message send sound:', error);
+      }
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,6 +135,20 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
     }
   }, [selectedFriend, user?.uid, getFriendById]);
 
+  // Reset unread count function
+  const resetUnreadCount = useCallback(async () => {
+    if (!selectedFriend?.id || !user?.uid) return;
+
+    try {
+      const chatRef = doc(db, "chats", selectedFriend.id);
+      await updateDoc(chatRef, {
+        [`unreadCount.${user.uid}`]: 0
+      });
+    } catch (error) {
+      // Silently fail if there's an error
+    }
+  }, [selectedFriend?.id, user?.uid]);
+
   useEffect(() => {
     if (!selectedFriend?.id || !user?.uid) return;
 
@@ -132,6 +162,12 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
         (messagesData) => {
           setMessages(messagesData);
           setLoading(false);
+          // Set the last message ID when messages are first loaded
+          if (messagesData.length > 0 && !lastMessageIdRef.current) {
+            lastMessageIdRef.current = messagesData[messagesData.length - 1]?.id;
+          }
+          // Auto read when messages are loaded
+          resetUnreadCount();
         },
         (error) => {
           setLoading(false);
@@ -144,25 +180,33 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
     } catch (error) {
       setLoading(false);
     }
-  }, [selectedFriend?.id, user?.uid, subscribeToMessages]);
+  }, [selectedFriend?.id, user?.uid, subscribeToMessages, resetUnreadCount]);
 
-  // Reset unread count when viewing a chat
+  // Reset unread count when viewing a chat (immediate reset on chat selection)
   useEffect(() => {
     if (!selectedFriend?.id || !user?.uid) return;
-
-    const resetUnreadCount = async () => {
-      try {
-        const chatRef = doc(db, "chats", selectedFriend.id);
-        await updateDoc(chatRef, {
-          [`unreadCount.${user.uid}`]: 0
-        });
-      } catch (error) {
-        // Silently fail if there's an error
-      }
-    };
-
+    // Reset the last message ID when switching chats
+    lastMessageIdRef.current = null;
     resetUnreadCount();
-  }, [selectedFriend?.id, user?.uid]);
+  }, [selectedFriend?.id, user?.uid, resetUnreadCount]);
+
+  // Auto read when new messages arrive while chat room is open
+  useEffect(() => {
+    if (!selectedFriend?.id || !user?.uid || messages.length === 0) return;
+    
+    // Get the last message ID
+    const lastMessage = messages[messages.length - 1];
+    const currentLastMessageId = lastMessage?.id;
+    
+    // Check if there's a new message (different from the last one we tracked)
+    if (currentLastMessageId && currentLastMessageId !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = currentLastMessageId;
+      // Only reset if the message is not from the current user (only mark as read when receiving messages)
+      if (lastMessage?.senderId !== user?.uid) {
+        resetUnreadCount();
+      }
+    }
+  }, [messages, selectedFriend?.id, user?.uid, resetUnreadCount]);
 
   const handleEmojiClick = useCallback((emojiData) => {
     setMessageInput(prev => prev + emojiData.emoji);
@@ -318,6 +362,18 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
       }
       
       await updateDoc(chatRef, updateData);
+
+      // Play message send sound
+      if (messageSoundRef.current) {
+        try {
+          messageSoundRef.current.currentTime = 0;
+          messageSoundRef.current.play().catch(error => {
+            console.log('Could not play message send sound:', error);
+          });
+        } catch (error) {
+          console.log('Error playing message send sound:', error);
+        }
+      }
 
       setMessageInput('');
       setSelectedImage(null);
