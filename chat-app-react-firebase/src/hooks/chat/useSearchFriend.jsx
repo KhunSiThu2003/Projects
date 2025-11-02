@@ -6,13 +6,11 @@ import {
     acceptFriendRequest,
     rejectFriendRequest,
     removeFriend,
-    unblockUser,
     checkFriendshipStatus,
 } from '../../services/friend'
 import { createOrGetChat } from '../../services/chatService'
 import { subscribeToUserProfile } from '../../services/realtimeSubscriptions'
 import useUserStore from '../../stores/useUserStore'
-import { toast } from 'react-hot-toast'
 
 export const useSearchFriend = () => {
     const [searchTerm, setSearchTerm] = useState('')
@@ -163,11 +161,9 @@ export const useSearchFriend = () => {
                     // Set up real-time subscriptions for each user
                     setupRealtimeSubscriptions(usersWithStatus)
                 } else {
-                    toast.error('Failed to search users')
                     setSearchResults([])
                 }
             } catch (error) {
-                toast.error('Error searching users')
                 setSearchResults([])
             } finally {
                 setIsSearching(false)
@@ -207,11 +203,8 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 onSelectChat(chatData);
             }
 
-        } else {
-            toast.error('Failed to start chat')
         }
     } catch (error) {
-        toast.error('Failed to start chat')
     } finally {
         setUserLoading(userData.uid, 'startChat', false)
     }
@@ -232,17 +225,11 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 )
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
-                if (result.error.includes('blocked')) {
-                    toast.error('Cannot send friend request to blocked user')
-                } else if (result.error.includes('already friends')) {
-                    toast.error('You are already friends with this user')
+                if (result.error.includes('already friends')) {
                     setTimeout(() => refreshUserStatus(userId), 1000)
-                } else {
-                    toast.error(result.error || 'Failed to send friend request')
                 }
             }
         } catch (error) {
-            toast.error('Failed to send friend request')
         } finally {
             setUserLoading(userId, 'addFriend', false)
         }
@@ -263,13 +250,33 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 )
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
-                toast.error(result.error || 'Failed to cancel request')
                 setTimeout(() => refreshUserStatus(userId), 1000)
             }
         } catch (error) {
-            toast.error('Failed to cancel request')
         } finally {
             setUserLoading(userId, 'cancel', false)
+        }
+    }, [user?.uid, setUserLoading])
+
+    const handleUnfriend = useCallback(async (userId, userName) => {
+        setUserLoading(userId, 'unfriend', true)
+        try {
+            const result = await removeFriend(user.uid, userId)
+
+            if (result.success) {
+                setSearchResults(prev =>
+                    prev.map(u =>
+                        u.uid === userId
+                            ? { ...u, status: "add" }
+                            : u
+                    )
+                )
+                setTimeout(() => refreshUserStatus(userId), 1500)
+            } else {
+                setTimeout(() => refreshUserStatus(userId), 1000)
+        } catch (error) {
+        } finally {
+            setUserLoading(userId, 'unfriend', false)
         }
     }, [user?.uid, setUserLoading])
 
@@ -288,11 +295,9 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 )
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
-                toast.error(result.error || 'Failed to accept request')
                 setTimeout(() => refreshUserStatus(userId), 1000)
             }
         } catch (error) {
-            toast.error('Failed to accept request')
         } finally {
             setUserLoading(userId, 'accept', false)
         }
@@ -313,79 +318,17 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 )
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
-                toast.error(result.error || 'Failed to decline request')
                 setTimeout(() => refreshUserStatus(userId), 1000)
             }
         } catch (error) {
-            toast.error('Failed to decline request')
         } finally {
             setUserLoading(userId, 'decline', false)
         }
     }, [user?.uid, setUserLoading])
 
-    const handleUnfriend = useCallback(async (userId, userName) => {
-        setUserLoading(userId, 'unfriend', true)
-        try {
-            const result = await removeFriend(user.uid, userId)
-
-            if (result.success) {
-                setSearchResults(prev =>
-                    prev.map(u =>
-                        u.uid === userId
-                            ? { ...u, status: "add" }
-                            : u
-                    )
-                )
-                setTimeout(() => refreshUserStatus(userId), 1500)
-            } else {
-                if (result.error.includes('not friends')) {
-                    toast.error(`You are not friends with ${userName}`)
-                    setSearchResults(prev =>
-                        prev.map(u =>
-                            u.uid === userId
-                                ? { ...u, status: "add" }
-                                : u
-                        )
-                    )
-                } else {
-                    toast.error(result.error || 'Failed to remove friend')
-                }
-                setTimeout(() => refreshUserStatus(userId), 1000)
-            }
-        } catch (error) {
-            toast.error('Failed to remove friend')
-        } finally {
-            setUserLoading(userId, 'unfriend', false)
-        }
-    }, [user?.uid, setUserLoading])
-
-    const handleUnblock = useCallback(async (userId, userName) => {
-        setUserLoading(userId, 'unblock', true)
-        try {
-            const result = await unblockUser(user.uid, userId)
-
-            if (result.success) {
-                setSearchResults(prev =>
-                    prev.map(u =>
-                        u.uid === userId
-                            ? { ...u, status: "add" }
-                            : u
-                    )
-                )
-                setTimeout(() => refreshUserStatus(userId), 1500)
-            } else {
-                toast.error(result.error || 'Failed to unblock user')
-            }
-        } catch (error) {
-            toast.error('Failed to unblock user')
-        } finally {
-            setUserLoading(userId, 'unblock', false)
-        }
-    }, [user?.uid, setUserLoading])
-
     const getActionButtons = useCallback((userData,onSelectChat) => {
         const loadingStates_user = loadingStates[userData.uid] || {}
-        const isAnyLoading = loadingStates_user.addFriend || loadingStates_user.cancel || loadingStates_user.accept || loadingStates_user.decline || loadingStates_user.unfriend || loadingStates_user.unblock || loadingStates_user.startChat
+        const isAnyLoading = loadingStates_user.addFriend || loadingStates_user.cancel || loadingStates_user.accept || loadingStates_user.decline || loadingStates_user.unfriend
 
         switch (userData.status) {
             case "add":
@@ -424,6 +367,24 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                     </button>
                 )
 
+            case "friend":
+                return (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnfriend(userData.uid, userData.fullName);
+                        }}
+                        disabled={isAnyLoading}
+                        className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
+                    >
+                        {loadingStates_user.unfriend ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            'Unfriend'
+                        )}
+                    </button>
+                )
+
             case "request_received":
                 return (
                     <div className="flex space-x-2">
@@ -458,43 +419,9 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                     </div>
                 )
 
-            case "friend":
-                return (
-                    <div className="flex space-x-2">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleUnfriend(userData.uid, userData.fullName);
-                            }}
-                            disabled={isAnyLoading}
-                            className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
-                        >
-                            {loadingStates_user.unfriend ? (
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                                'Unfriend'
-                            )}
-                        </button>
-                    </div>
-                )
-
             case "blocked":
-                return (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnblock(userData.uid, userData.fullName);
-                        }}
-                        disabled={isAnyLoading}
-                        className="px-3 py-2 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
-                    >
-                        {loadingStates_user.unblock ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                            'Unblock'
-                        )}
-                    </button>
-                )
+                // Blocked users shouldn't appear in search results, but if they do, don't show button
+                return null
 
             default:
                 return (
@@ -514,7 +441,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                     </button>
                 )
         }
-    }, [loadingStates, handleAddFriend, handleCancelRequest, handleAcceptRequest, handleDeclineRequest, handleStartChat, handleUnfriend, handleUnblock])
+    }, [loadingStates, handleAddFriend, handleCancelRequest, handleAcceptRequest, handleDeclineRequest, handleUnfriend])
 
     const getAvatarContent = useCallback((userData) => {
         if (userData.profilePic) {

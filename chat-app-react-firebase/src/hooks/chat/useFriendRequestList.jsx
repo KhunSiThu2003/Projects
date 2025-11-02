@@ -8,7 +8,6 @@ import {
 import { createOrGetChat } from '../../services/chatService'
 import useUserStore from '../../stores/useUserStore'
 import useRealtimeStore from '../../stores/useRealtimeStore'
-import { toast } from 'react-hot-toast'
 
 export const useFriendRequestList = ({ onSelectChat }) => {
     const [activeTab, setActiveTab] = useState('received')
@@ -88,7 +87,6 @@ export const useFriendRequestList = ({ onSelectChat }) => {
                 }
             }
         } catch (error) {
-            toast.error('Failed to accept friend request')
         } finally {
             setRequestLoading(requestId, 'accept', false)
         }
@@ -100,7 +98,6 @@ export const useFriendRequestList = ({ onSelectChat }) => {
             const result = await rejectFriendRequest(user.uid, requestId)
 
         } catch (error) {
-            toast.error('Failed to decline request')
         } finally {
             setRequestLoading(requestId, 'decline', false)
         }
@@ -112,7 +109,6 @@ export const useFriendRequestList = ({ onSelectChat }) => {
             const result = await cancelFriendRequest(user.uid, requestId)
 
         } catch (error) {
-            toast.error('Failed to cancel request')
         } finally {
             setRequestLoading(requestId, 'cancel', false)
         }
@@ -124,7 +120,6 @@ export const useFriendRequestList = ({ onSelectChat }) => {
             const result = await blockUser(user.uid, requestId)
 
         } catch (error) {
-            toast.error('Failed to block user')
         } finally {
             setRequestLoading(requestId, 'block', false)
         }
@@ -154,7 +149,6 @@ export const useFriendRequestList = ({ onSelectChat }) => {
 
             }
         } catch (error) {
-            toast.error('Failed to start chat')
         } finally {
             setRequestLoading(userData.id, 'message', false)
         }

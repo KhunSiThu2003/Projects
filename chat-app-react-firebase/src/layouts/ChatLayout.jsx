@@ -1,5 +1,4 @@
 import { Outlet } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
 import { Suspense, useEffect, useRef } from "react";
 import PageLoading from "../components/PageLoading";
 import useUserStore from "../stores/useUserStore";

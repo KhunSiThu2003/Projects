@@ -3,7 +3,6 @@ import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import useUserStore from '../../stores/useUserStore'
 import useRealtimeStore from '../../stores/useRealtimeStore'
-import { toast } from 'react-hot-toast'
 
 export const useChatList = () => {
     const [searchTerm, setSearchTerm] = useState('')
@@ -154,7 +153,6 @@ export const useChatList = () => {
 
             setProcessedChats(sortedChats)
         } catch (error) {
-            toast.error('Error loading conversations')
         } finally {
             setLoading(false)
         }
