@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { searchUsersByEmailOrName } from '../../services/user'
 import {
     sendFriendRequest,
@@ -11,6 +11,7 @@ import {
 import { createOrGetChat } from '../../services/chatService'
 import { subscribeToUserProfile } from '../../services/realtimeSubscriptions'
 import useUserStore from '../../stores/useUserStore'
+import useRealtimeStore from '../../stores/useRealtimeStore'
 
 export const useSearchFriend = () => {
     const [searchTerm, setSearchTerm] = useState('')
@@ -21,6 +22,7 @@ export const useSearchFriend = () => {
     const unsubscribeRefs = useRef([])
 
     const { user } = useUserStore()
+    const { friendRequests } = useRealtimeStore()
 
     const setUserLoading = useCallback((userId, action, isLoading) => {
         setLoadingStates(prev => ({
@@ -55,21 +57,23 @@ export const useSearchFriend = () => {
         }
     }
 
-    const refreshUserStatus = async (userId) => {
+    const refreshUserStatus = useCallback(async (userId) => {
         try {
-            const userData = searchResults.find(u => u.uid === userId);
-            if (userData) {
-                const newStatus = await getFriendshipStatus(userData);
-                setSearchResults(prev =>
-                    prev.map(u =>
-                        u.uid === userId
-                            ? { ...u, status: newStatus }
-                            : u
-                    )
+            const newStatus = await getFriendshipStatus({ uid: userId });
+            setSearchResults(prev => {
+                const userData = prev.find(u => u.uid === userId);
+                if (!userData) return prev;
+                
+                return prev.map(u =>
+                    u.uid === userId
+                        ? { ...u, status: newStatus }
+                        : u
                 );
-            }
-        } catch (error) {}
-    }
+            });
+        } catch (error) {
+            console.error('Error refreshing user status:', error);
+        }
+    }, [user?.uid])
 
     // Set up real-time subscriptions for search results
     const setupRealtimeSubscriptions = useCallback((users) => {
@@ -216,6 +220,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
             const result = await sendFriendRequest(user.uid, userId)
 
             if (result.success) {
+                // Immediately update status to request_sent
                 setSearchResults(prev =>
                     prev.map(u =>
                         u.uid === userId
@@ -223,17 +228,19 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             : u
                     )
                 )
+                // Also refresh status after a short delay to ensure consistency
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
-                if (result.error.includes('already friends')) {
-                    setTimeout(() => refreshUserStatus(userId), 1000)
-                }
+                // If error, refresh status to get correct state
+                setTimeout(() => refreshUserStatus(userId), 500)
             }
         } catch (error) {
+            // On error, refresh status
+            setTimeout(() => refreshUserStatus(userId), 500)
         } finally {
             setUserLoading(userId, 'addFriend', false)
         }
-    }, [user?.uid, setUserLoading])
+    }, [user?.uid, setUserLoading, refreshUserStatus])
 
     const handleCancelRequest = useCallback(async (userId, userName) => {
         setUserLoading(userId, 'cancel', true)
@@ -256,7 +263,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } finally {
             setUserLoading(userId, 'cancel', false)
         }
-    }, [user?.uid, setUserLoading])
+    }, [user?.uid, setUserLoading, refreshUserStatus])
 
     const handleUnfriend = useCallback(async (userId, userName) => {
         setUserLoading(userId, 'unfriend', true)
@@ -274,11 +281,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                 setTimeout(() => refreshUserStatus(userId), 1500)
             } else {
                 setTimeout(() => refreshUserStatus(userId), 1000)
+            }
         } catch (error) {
         } finally {
             setUserLoading(userId, 'unfriend', false)
         }
-    }, [user?.uid, setUserLoading])
+    }, [user?.uid, setUserLoading, refreshUserStatus])
 
     const handleAcceptRequest = useCallback(async (userId, userName) => {
         setUserLoading(userId, 'accept', true)
@@ -301,7 +309,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } finally {
             setUserLoading(userId, 'accept', false)
         }
-    }, [user?.uid, setUserLoading])
+    }, [user?.uid, setUserLoading, refreshUserStatus])
 
     const handleDeclineRequest = useCallback(async (userId, userName) => {
         setUserLoading(userId, 'decline', true)
@@ -324,7 +332,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } finally {
             setUserLoading(userId, 'decline', false)
         }
-    }, [user?.uid, setUserLoading])
+    }, [user?.uid, setUserLoading, refreshUserStatus])
 
     const getActionButtons = useCallback((userData,onSelectChat) => {
         const loadingStates_user = loadingStates[userData.uid] || {}
@@ -492,6 +500,40 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
             unsubscribeRefs.current = [];
         }
     }, [searchTerm])
+
+    // Create stable dependency values from friend requests
+    const sentRequestIds = useMemo(() => {
+        return friendRequests?.sent?.map(req => req.uid).sort().join(',') || '';
+    }, [friendRequests?.sent]);
+
+    const receivedRequestIds = useMemo(() => {
+        return friendRequests?.received?.map(req => req.uid).sort().join(',') || '';
+    }, [friendRequests?.received]);
+
+    // Listen to realtime friend requests updates and sync search results status
+    useEffect(() => {
+        if (!friendRequests || searchResults.length === 0) return;
+
+        setSearchResults(prev => {
+            let hasChanges = false;
+            const updated = prev.map(userData => {
+                const isSent = friendRequests.sent?.some(req => req.uid === userData.uid);
+                const isReceived = friendRequests.received?.some(req => req.uid === userData.uid);
+                
+                if (isSent && userData.status !== 'request_sent') {
+                    hasChanges = true;
+                    return { ...userData, status: 'request_sent' };
+                } else if (isReceived && userData.status !== 'request_received') {
+                    hasChanges = true;
+                    return { ...userData, status: 'request_received' };
+                }
+                return userData;
+            });
+            
+            // Only update if there are actual changes to prevent infinite loops
+            return hasChanges ? updated : prev;
+        });
+    }, [sentRequestIds, receivedRequestIds, friendRequests])
 
     return {
         searchTerm,
