@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 export const useFriendList = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('all');
+    const [actionLoading, setActionLoading] = useState({});
 
     const { user } = useUserStore();
     const {
@@ -45,9 +46,20 @@ export const useFriendList = () => {
     const onlineFriends = useMemo(() => getOnlineFriends(), [getOnlineFriends]);
     const offlineFriends = useMemo(() => getOfflineFriends(), [getOfflineFriends]);
 
+    const setFriendLoading = useCallback((friendId, action, isLoading) => {
+        setActionLoading(prev => ({
+            ...prev,
+            [friendId]: {
+                ...prev[friendId],
+                [action]: isLoading
+            }
+        }));
+    }, []);
+
     const handleStartChat = useCallback(async (friend, onSelectChat) => {
         if (!user?.uid) return;
 
+        setFriendLoading(friend.uid, 'startChat', true);
         try {
             const chat = await createOrGetChat(user.uid, friend.uid);
 
@@ -72,12 +84,15 @@ export const useFriendList = () => {
             }
         } catch (error) {
             toast.error('Failed to start chat');
+        } finally {
+            setFriendLoading(friend.uid, 'startChat', false);
         }
-    }, [user?.uid]);
+    }, [user?.uid, setFriendLoading]);
 
     const handleUnfriend = useCallback(async (friend) => {
         if (!user?.uid) return;
 
+        setFriendLoading(friend.uid, 'unfriend', true);
         try {
             const result = await removeFriend(user.uid, friend.uid);
             if (!result.success) {
@@ -85,8 +100,10 @@ export const useFriendList = () => {
             }
         } catch (error) {
             toast.error('Failed to remove friend');
+        } finally {
+            setFriendLoading(friend.uid, 'unfriend', false);
         }
-    }, [user?.uid]);
+    }, [user?.uid, setFriendLoading]);
 
     return {
         user,
@@ -102,6 +119,7 @@ export const useFriendList = () => {
         offlineFriends,
         handleStartChat,
         handleUnfriend,
-        subscribeToAllData
+        subscribeToAllData,
+        actionLoading
     };
 };

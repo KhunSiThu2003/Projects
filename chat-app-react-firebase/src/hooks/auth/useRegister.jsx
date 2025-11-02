@@ -47,7 +47,6 @@ export const useRegister = () => {
                 toast.error(result.message || "Registration failed. Please try again.");
             }
         } catch (error) {
-            console.error("Unexpected registration error:", error);
             toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);
@@ -76,7 +75,6 @@ export const useRegister = () => {
                 toast.error(result.message || 'Google registration failed');
             }
         } catch (err) {
-            console.error("Unexpected error:", err);
             toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);

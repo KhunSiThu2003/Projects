@@ -83,7 +83,7 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
             </div>
           </div>
 
-          <div className='flex items-center space-x-2'>
+          {/* <div className='flex items-center space-x-2'>
             <button
               onClick={onOpenDetail}
               className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors lg:hidden'
@@ -92,7 +92,7 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
                 <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M9 5l7 7-7 7' />
               </svg>
             </button>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -142,11 +142,10 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
 
                     <div className={`max-w-xs lg:max-w-md ${isOwnMessage ? 'order-1' : 'order-2'}`}>
                       <div
-                        className={`px-4 py-2 rounded-2xl relative group ${
-                          isOwnMessage
+                        className={`px-4 py-2 rounded-2xl relative group ${isOwnMessage
                             ? 'bg-black/90 text-white rounded-br-none'
                             : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'
-                        }`}
+                          }`}
                       >
                         {message.type === 'image' && message.image && (
                           <div className="mb-2 relative">
@@ -183,9 +182,8 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
                           <p className='text-sm whitespace-pre-wrap break-words'>{message.content}</p>
                         )}
 
-                        <p className={`text-xs mt-1 ${
-                          isOwnMessage ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
+                        <p className={`text-xs mt-1 ${isOwnMessage ? 'text-blue-100' : 'text-gray-500'
+                          }`}>
                           {formatMessageTime(message.timestamp)}
                         </p>
 
@@ -248,7 +246,7 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
               alt="Full size"
               className="max-w-full max-h-full object-contain"
             />
-            
+
             <button
               onClick={handleModalDownload}
               className="absolute bottom-4 right-4 cursor-pointer bg-black bg-opacity-50 text-white rounded-full p-3 hover:bg-opacity-70 transition-colors"
@@ -261,18 +259,18 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
       )}
 
       <div className='border-t border-gray-200 p-4 bg-white'>
-        <div className='flex items-end space-x-3'>
-          <div className="relative">
+        <div className='flex items-center justify-between space-x-3 '>
+          <div className="relative ">
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0'
             >
               <FaSmile className='w-5 h-5' />
             </button>
-            
+
             {showEmojiPicker && (
               <div className="absolute bottom-full left-0 mb-2 z-50">
-                <EmojiPicker 
+                <EmojiPicker
                   onEmojiClick={handleEmojiClick}
                   width={300}
                   height={400}
@@ -287,6 +285,7 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
           >
             <FaImage className='w-5 h-5' />
           </button>
+
           <input
             type="file"
             ref={fileInputRef}
@@ -295,13 +294,13 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
             className="hidden"
           />
 
-          <div className='flex-1 bg-gray-100 rounded-2xl px-4 py-2 min-h-[44px] max-h-32 overflow-y-auto'>
+          <div className='flex-1 bg-gray-100 rounded  overflow-y-auto'>
             <textarea
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder='Type a message...'
-              className='w-full bg-transparent border-none focus:outline-none text-sm resize-none max-h-24'
+              className='w-full bg-transparent border-none focus:outline-none text-sm resize-none p-2'
               rows="1"
             />
           </div>
@@ -309,17 +308,16 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
           <button
             onClick={handleSendMessage}
             disabled={(!messageInput.trim() && !selectedImage) || sending}
-            className={`p-2 rounded-full transition-colors flex-shrink-0 ${
-              (messageInput.trim() || selectedImage) && !sending
-                ? 'bg-blue-500 text-white hover:bg-blue-600' 
+            className={` p-2  rounded transition-colors flex-shrink-0 ${(messageInput.trim() || selectedImage) && !sending
+                ? 'bg-black text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+              }`}
           >
             {sending ? (
-              <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white'></div>
+              <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-black'></div>
             ) : (
-              <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 19l9 2-9-18-9 18 9-2zm0 0v-8' />
+              <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5' />
               </svg>
             )}
           </button>
@@ -327,8 +325,8 @@ const ChatRoom = ({ selectedFriend, onOpenDetail, onBack, showBackButton = false
       </div>
 
       {showEmojiPicker && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setShowEmojiPicker(false)}
         />
       )}

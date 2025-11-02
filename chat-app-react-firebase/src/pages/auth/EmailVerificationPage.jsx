@@ -1,4 +1,3 @@
-// EmailVerificationPage.jsx
 import React from 'react';
 import EmailVerificationForm from '../../components/auth/EmailVerificationForm';
 

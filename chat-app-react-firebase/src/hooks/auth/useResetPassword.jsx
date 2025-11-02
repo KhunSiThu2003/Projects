@@ -41,7 +41,6 @@ export const useResetPassword = () => {
                 toast.error(result.message);
             }
         } catch (error) {
-            console.error('Unexpected password reset error:', error);
             toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);

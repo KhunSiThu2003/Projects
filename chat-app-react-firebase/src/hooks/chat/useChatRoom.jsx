@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { collection, addDoc, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, deleteDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import useUserStore from '../../stores/useUserStore';
 import useRealtimeStore from '../../stores/useRealtimeStore';
@@ -146,6 +146,24 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
     }
   }, [selectedFriend?.id, user?.uid, subscribeToMessages]);
 
+  // Reset unread count when viewing a chat
+  useEffect(() => {
+    if (!selectedFriend?.id || !user?.uid) return;
+
+    const resetUnreadCount = async () => {
+      try {
+        const chatRef = doc(db, "chats", selectedFriend.id);
+        await updateDoc(chatRef, {
+          [`unreadCount.${user.uid}`]: 0
+        });
+      } catch (error) {
+        // Silently fail if there's an error
+      }
+    };
+
+    resetUnreadCount();
+  }, [selectedFriend?.id, user?.uid]);
+
   const handleEmojiClick = useCallback((emojiData) => {
     setMessageInput(prev => prev + emojiData.emoji);
     setShowEmojiPicker(false);
@@ -283,13 +301,23 @@ export const useChatRoom = (selectedFriend, onOpenDetail, onBack, showBackButton
 
       await addDoc(messagesRef, messageData);
 
+      // Get the other participant's ID to increment their unread count
+      const otherParticipantId = selectedFriend.participantsArray?.find(id => id !== user.uid);
+      
       const chatRef = doc(db, "chats", selectedFriend.id);
-      await updateDoc(chatRef, {
+      const updateData = {
         lastMessage: messageType === 'image' ? '📷 Image' : messageContent,
         lastMessageAt: serverTimestamp(),
         lastUpdated: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      };
+      
+      // Increment unread count for the recipient
+      if (otherParticipantId) {
+        updateData[`unreadCount.${otherParticipantId}`] = increment(1);
+      }
+      
+      await updateDoc(chatRef, updateData);
 
       setMessageInput('');
       setSelectedImage(null);

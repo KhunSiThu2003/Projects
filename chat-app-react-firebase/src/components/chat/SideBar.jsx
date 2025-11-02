@@ -1,4 +1,3 @@
-// SideBar.jsx - Updated with profile modal
 import React, { useState, useEffect } from 'react'
 import UserInfo from './UserInfo'
 import {
@@ -56,7 +55,6 @@ const SideBar = ({ setShowList, activeView }) => {
   } = useRealtimeStore()
   const [, setUserCookie] = useCookie("user")
 
-  // Load user data when profile modal opens
   useEffect(() => {
     if (showProfileModal) {
       loadUserData()
@@ -83,7 +81,6 @@ const SideBar = ({ setShowList, activeView }) => {
         toast.error('Failed to load user data')
       }
     } catch (error) {
-      console.error('Error loading user data:', error)
       toast.error('Error loading profile data')
     } finally {
       setIsLoading(false)
@@ -112,7 +109,6 @@ const SideBar = ({ setShowList, activeView }) => {
     try {
       setIsLoading(true)
 
-      // Validate form data
       if (!formData.fullName.trim()) {
         toast.error('Full name is required')
         return
@@ -137,7 +133,6 @@ const SideBar = ({ setShowList, activeView }) => {
         setOriginalData(formData)
         setIsEditing(false)
 
-        // Update user store
         const updatedUser = await getUserProfile(user?.uid)
         if (updatedUser.success) {
           setUser(updatedUser.user)
@@ -146,7 +141,6 @@ const SideBar = ({ setShowList, activeView }) => {
         toast.error(result.error || 'Failed to update profile')
       }
     } catch (error) {
-      console.error('Error updating profile:', error)
       toast.error('Error updating profile')
     } finally {
       setIsLoading(false)
@@ -189,21 +183,18 @@ const SideBar = ({ setShowList, activeView }) => {
       setShowDeleteModal(false)
       setShowProfileModal(false)
 
-      // Clear all stores and cookies
       clearAllData()
       removeUser()
       setUserCookie('')
       navigate('/')
 
     } catch (error) {
-      console.error('Delete account error:', error)
       toast.error(error.message || 'Failed to delete account')
     } finally {
       setIsDeleting(false)
     }
   }
 
-  // Calculate unread messages count properly
   const getUnreadMessagesCount = () => {
     if (!chats || !Array.isArray(chats)) return 0;
 
@@ -213,7 +204,6 @@ const SideBar = ({ setShowList, activeView }) => {
     }, 0);
   };
 
-  // Calculate real-time notification counts
   const getNotificationCounts = () => {
     const unreadMessagesCount = getUnreadMessagesCount();
     const receivedRequestsCount = receivedFriendRequests.length;
@@ -282,12 +272,10 @@ const SideBar = ({ setShowList, activeView }) => {
 
     setIsLoggingOut(true)
     try {
-      // Set user offline
       if (user?.uid) {
         await setUserOffline(user.uid);
       }
 
-      // Clear all stores and cookies
       clearAllData();
       removeUser();
       setUserCookie('', { days: 0 });
@@ -296,7 +284,6 @@ const SideBar = ({ setShowList, activeView }) => {
       setShowLogoutModal(false)
       navigate('/')
     } catch (error) {
-      console.error('Logout error:', error)
       toast.error(error.message || 'Logout failed. Please try again.')
       setShowLogoutModal(false)
     } finally {
@@ -304,7 +291,6 @@ const SideBar = ({ setShowList, activeView }) => {
     }
   }
 
-  // Handle responsive behavior
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 900) {
@@ -316,7 +302,6 @@ const SideBar = ({ setShowList, activeView }) => {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Close sidebar when clicking outside on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isMobileOpen && !event.target.closest('.sidebar-container')) {
@@ -328,7 +313,6 @@ const SideBar = ({ setShowList, activeView }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isMobileOpen])
 
-  // Close modal when pressing Escape key
   useEffect(() => {
     const handleEscapeKey = (event) => {
       if (event.key === 'Escape') {
@@ -346,7 +330,6 @@ const SideBar = ({ setShowList, activeView }) => {
     return () => document.removeEventListener('keydown', handleEscapeKey)
   }, [showLogoutModal, showProfileModal, showDeleteModal])
 
-  // Get total notification count for mobile header
   const totalNotifications = Object.values(notificationCounts).reduce((sum, count) => sum + count, 0);
 
   return (
@@ -431,10 +414,10 @@ const SideBar = ({ setShowList, activeView }) => {
                   title={item.label}
                 >
                   {/* Icon + Badge */}
-                  <div className="relative flex items-center justify-center w-6 h-6">
+                  <div className=" flex items-center justify-center w-6 h-6">
                     {item.icon}
                     {item.notification > 0 && (
-                      <span className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center text-white shadow-sm ${isActive ? 'bg-white text-black border border-gray-300' : 'bg-red-500'
+                      <span className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center text-white shadow-sm bg-red-500
                         }`}>
                         {item.notification > 9 ? '9+' : item.notification}
                       </span>
@@ -454,13 +437,7 @@ const SideBar = ({ setShowList, activeView }) => {
                     {item.label}
                   </span>
 
-                  {/* Notification count for expanded view */}
-                  {(isMobileOpen || isExpanded) && item.notification > 0 && (
-                    <span className={`ml-auto text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center ${isActive ? 'bg-white text-black' : 'bg-red-500 text-white'
-                      }`}>
-                      {item.notification}
-                    </span>
-                  )}
+
                 </button>
               );
             })}
@@ -596,6 +573,36 @@ const SideBar = ({ setShowList, activeView }) => {
                             />
                           ) : (
                             <p className="text-gray-900">{formData.fullName || 'Not set'}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bio Field */}
+                      <div className="flex items-start space-x-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FaIdCard className="text-gray-600" size={12} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Bio
+                          </label>
+                          {isEditing ? (
+                            <textarea
+                              name="bio"
+                              value={formData.bio}
+                              onChange={handleInputChange}
+                              rows={4}
+                              maxLength={200}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all duration-200 text-gray-900 resize-none"
+                              placeholder="Tell us about yourself..."
+                            />
+                          ) : (
+                            <p className="text-gray-900 whitespace-pre-wrap">{formData.bio || 'Not set'}</p>
+                          )}
+                          {isEditing && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {formData.bio?.length || 0}/200 characters
+                            </p>
                           )}
                         </div>
                       </div>

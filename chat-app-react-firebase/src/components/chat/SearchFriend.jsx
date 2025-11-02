@@ -174,7 +174,6 @@ const SearchFriend = ({ handleSetActiveView, onSelectChat }) => {
     )
 }
 
-// Add the same formatLastSeen function from FriendList
 const formatLastSeen = (lastSeen) => {
     if (!lastSeen) return 'Never';
 

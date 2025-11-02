@@ -1,4 +1,3 @@
-// UserInfo.jsx - Updated with profile button
 import React from 'react';
 import { FaUser } from 'react-icons/fa';
 import useUserStore from '../../stores/useUserStore';

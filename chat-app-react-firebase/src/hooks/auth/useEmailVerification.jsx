@@ -47,10 +47,8 @@ export const useEmailVerification = () => {
 
         if (location.state?.email) {
             emailToSet = location.state.email;
-            console.log('Setting email from location state:', emailToSet);
         } else if (auth.currentUser?.email) {
             emailToSet = auth.currentUser.email;
-            console.log('Setting email from current user:', emailToSet);
         }
 
         if (emailToSet) {
@@ -75,8 +73,6 @@ export const useEmailVerification = () => {
 
         setIsLoading(true);
         try {
-            console.log('Sending verification email to:', data.email);
-
             if (!auth.currentUser) {
                 toast.error('Please sign in first to verify your email.');
                 setIsLoading(false);
@@ -98,7 +94,6 @@ export const useEmailVerification = () => {
             toast.success('Verification email sent successfully! Check your inbox.');
 
         } catch (error) {
-            console.error('Email verification sending error:', error);
             let message = "Failed to send verification email. Please try again.";
 
             switch (error.code) {

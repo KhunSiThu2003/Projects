@@ -54,7 +54,6 @@ const EmailVerificationForm = () => {
         );
     }
 
-    // Show error state if verification failed
     if (verificationStatus === 'error') {
         return (
             <div className="space-y-6 text-center">

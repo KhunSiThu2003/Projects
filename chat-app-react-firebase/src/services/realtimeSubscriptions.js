@@ -8,10 +8,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 
-// =============================================
-// CHAT SUBSCRIPTIONS
-// =============================================
-
 /**
  * Subscribe to user's chats with real-time updates
  * Uses participantsArray field with array-contains for better indexing
@@ -26,7 +22,6 @@ export const subscribeToChats = (userId, onChatsUpdate, onError) => {
 
     const chatsRef = collection(db, "chats");
     
-    // Primary query with array-contains and ordering
     const q = query(
       chatsRef, 
       where("participantsArray", "array-contains", userId),
@@ -52,11 +47,8 @@ export const subscribeToChats = (userId, onChatsUpdate, onError) => {
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in chat list subscription:', error);
         
-        // If index error, try fallback without orderBy
         if (error.code === 'failed-precondition' || error.message.includes('index')) {
-          console.log('🔄 Trying chat subscription without orderBy...');
           const fallbackUnsubscribe = subscribeToChatsWithoutOrderBy(userId, onChatsUpdate, onError);
           return () => {
             isActive = false;
@@ -75,13 +67,10 @@ export const subscribeToChats = (userId, onChatsUpdate, onError) => {
     };
 
   } catch (error) {
-    console.error('Error setting up chat subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
 };
-
-// Add to realtimeSubscriptions.js
 
 /**
  * Subscribe to messages for a specific chat
@@ -112,7 +101,6 @@ export const subscribeToChatMessages = (chatId, onMessagesUpdate, onError) => {
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in messages subscription:', error);
         if (onError) onError(error);
         onMessagesUpdate([]);
       }
@@ -124,7 +112,6 @@ export const subscribeToChatMessages = (chatId, onMessagesUpdate, onError) => {
     };
 
   } catch (error) {
-    console.error('Error setting up messages subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
@@ -141,7 +128,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
       return () => {};
     }
 
-    // First get user's chats, then subscribe to each chat's messages
     const chatsRef = collection(db, "chats");
     const q = query(
       chatsRef, 
@@ -164,7 +150,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
           });
         });
 
-        // Clean up subscriptions for chats that are no longer in the list
         const currentChatIds = userChats.map(chat => chat.id);
         chatUnsubscribers.forEach((unsub, chatId) => {
           if (!currentChatIds.includes(chatId)) {
@@ -173,7 +158,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
           }
         });
 
-        // Subscribe to messages for each chat
         userChats.forEach(chat => {
           if (!chatUnsubscribers.has(chat.id)) {
             const unsubscribeMessages = subscribeToChatMessages(
@@ -184,7 +168,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
               },
               (error) => {
                 if (!isActive) return;
-                console.error(`Error in messages for chat ${chat.id}:`, error);
               }
             );
             
@@ -194,7 +177,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in all chats subscription:', error);
         if (onError) onError(error);
       }
     );
@@ -207,7 +189,6 @@ export const subscribeToAllChatMessages = (userId, onMessagesUpdate, onError) =>
     };
 
   } catch (error) {
-    console.error('Error setting up all messages subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
@@ -229,7 +210,6 @@ export const subscribeToChatsWithoutOrderBy = (userId, onChatsUpdate, onError) =
     const q = query(
       chatsRef, 
       where("participantsArray", "array-contains", userId)
-      // No orderBy to avoid index requirements
     );
 
     let isActive = true;
@@ -247,22 +227,18 @@ export const subscribeToChatsWithoutOrderBy = (userId, onChatsUpdate, onError) =
           });
         });
 
-        // Client-side sorting
         chats.sort((a, b) => {
           const timeA = a.lastUpdated?.toDate?.() || a.lastMessageAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
           const timeB = b.lastUpdated?.toDate?.() || b.lastMessageAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
-          return timeB - timeA; // Newest first
+          return timeB - timeA;
         });
 
         onChatsUpdate(chats);
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in fallback chat subscription:', error);
         
-        // Ultimate fallback - get all chats and filter manually
         if (error.code === 'failed-precondition') {
-          console.log('🔄 Trying ultimate fallback...');
           const ultimateUnsubscribe = subscribeToAllChatsManualFilter(userId, onChatsUpdate, onError);
           return () => {
             isActive = false;
@@ -281,7 +257,6 @@ export const subscribeToChatsWithoutOrderBy = (userId, onChatsUpdate, onError) =
     };
 
   } catch (error) {
-    console.error('Error setting up fallback chat subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
@@ -314,9 +289,7 @@ export const subscribeToAllChatsManualFilter = (userId, onChatsUpdate, onError) 
           });
         });
 
-        // Manual filtering
         const userChats = allChats.filter(chat => {
-          // Try participantsArray first, then participants as fallback
           if (chat.participantsArray && chat.participantsArray.includes(userId)) {
             return true;
           }
@@ -326,7 +299,6 @@ export const subscribeToAllChatsManualFilter = (userId, onChatsUpdate, onError) 
           return false;
         });
 
-        // Manual sorting
         userChats.sort((a, b) => {
           const timeA = a.lastUpdated?.toDate?.() || a.lastMessageAt?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
           const timeB = b.lastUpdated?.toDate?.() || b.lastMessageAt?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
@@ -337,7 +309,6 @@ export const subscribeToAllChatsManualFilter = (userId, onChatsUpdate, onError) 
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in ultimate fallback chat subscription:', error);
         if (onError) onError(error);
         onChatsUpdate([]);
       }
@@ -349,15 +320,10 @@ export const subscribeToAllChatsManualFilter = (userId, onChatsUpdate, onError) 
     };
 
   } catch (error) {
-    console.error('Error setting up ultimate fallback chat subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
 };
-
-// =============================================
-// FRIENDS SUBSCRIPTIONS
-// =============================================
 
 /**
  * Subscribe to friends list with real-time updates
@@ -379,7 +345,6 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
       
       if (!userDoc.exists()) {
         const error = new Error("User not found");
-        console.error(error.message);
         if (onError) onError(error);
         onFriendsUpdate([]);
         return;
@@ -388,7 +353,6 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
       const userData = userDoc.data();
       const friendIds = userData.friends || [];
 
-      // Clean up previous subscriptions
       unsubscribers.forEach(unsub => unsub());
       unsubscribers = [];
 
@@ -399,7 +363,6 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
 
       const friendsData = [];
 
-      // Subscribe to each friend's profile
       friendIds.forEach(friendId => {
         const friendRef = doc(db, "users", friendId);
         
@@ -418,7 +381,6 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
               lastSeen: friendData.lastSeen
             };
 
-            // Update friend in array
             const existingIndex = friendsData.findIndex(f => f.uid === friendId);
             if (existingIndex >= 0) {
               friendsData[existingIndex] = friendInfo;
@@ -426,21 +388,18 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
               friendsData.push(friendInfo);
             }
 
-            // Sort and update
             onFriendsUpdate([...friendsData].sort((a, b) => 
               (a.fullName || '').localeCompare(b.fullName || '')
             ));
           }
         }, (error) => {
           if (!isActive) return;
-          console.error(`Error listening to friend ${friendId}:`, error);
         });
 
         unsubscribers.push(unsubscribeFriend);
       });
     }, (error) => {
       if (!isActive) return;
-      console.error('Error in friends list subscription:', error);
       if (onError) onError(error);
       onFriendsUpdate([]);
     });
@@ -452,15 +411,10 @@ export const subscribeToFriends = (userId, onFriendsUpdate, onError) => {
     };
 
   } catch (error) {
-    console.error('Error setting up friends subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
 };
-
-// =============================================
-// FRIEND REQUESTS SUBSCRIPTIONS
-// =============================================
 
 /**
  * Subscribe to friend requests (both sent and received)
@@ -491,7 +445,6 @@ export const subscribeToFriendRequests = (userId, onRequestsUpdate, onError) => 
       const sentRequests = userData.sentRequests || [];
       const receivedRequests = userData.receivedRequests || [];
 
-      // Clean up previous subscriptions
       unsubscribers.forEach(unsub => unsub());
       unsubscribers = [];
 
@@ -500,7 +453,6 @@ export const subscribeToFriendRequests = (userId, onRequestsUpdate, onError) => 
         received: []
       };
 
-      // Subscribe to sent requests
       sentRequests.forEach(requestId => {
         const requestRef = doc(db, "users", requestId);
         const unsubscribeRequest = onSnapshot(requestRef, (requestDoc) => {
@@ -530,7 +482,6 @@ export const subscribeToFriendRequests = (userId, onRequestsUpdate, onError) => 
         unsubscribers.push(unsubscribeRequest);
       });
 
-      // Subscribe to received requests
       receivedRequests.forEach(requestId => {
         const requestRef = doc(db, "users", requestId);
         const unsubscribeRequest = onSnapshot(requestRef, (requestDoc) => {
@@ -560,13 +511,11 @@ export const subscribeToFriendRequests = (userId, onRequestsUpdate, onError) => 
         unsubscribers.push(unsubscribeRequest);
       });
 
-      // If no requests, send empty data
       if (sentRequests.length === 0 && receivedRequests.length === 0) {
         onRequestsUpdate({ sent: [], received: [] });
       }
     }, (error) => {
       if (!isActive) return;
-      console.error('Error in friend requests subscription:', error);
       if (onError) onError(error);
       onRequestsUpdate({ sent: [], received: [] });
     });
@@ -578,7 +527,6 @@ export const subscribeToFriendRequests = (userId, onRequestsUpdate, onError) => 
     };
 
   } catch (error) {
-    console.error('Error setting up friend requests subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
@@ -612,7 +560,6 @@ export const subscribeToReceivedFriendRequests = (userId, onReceivedRequestsUpda
       const userData = userDoc.data();
       const receivedRequests = userData.receivedRequests || [];
 
-      // Clean up previous subscriptions
       unsubscribers.forEach(unsub => unsub());
       unsubscribers = [];
 
@@ -623,7 +570,6 @@ export const subscribeToReceivedFriendRequests = (userId, onReceivedRequestsUpda
 
       const receivedRequestsData = [];
 
-      // Subscribe to each received request
       receivedRequests.forEach(requestId => {
         const requestRef = doc(db, "users", requestId);
         const unsubscribeRequest = onSnapshot(requestRef, (requestDoc) => {
@@ -652,14 +598,12 @@ export const subscribeToReceivedFriendRequests = (userId, onReceivedRequestsUpda
           }
         }, (error) => {
           if (!isActive) return;
-          console.error(`Error listening to request user ${requestId}:`, error);
         });
 
         unsubscribers.push(unsubscribeRequest);
       });
     }, (error) => {
       if (!isActive) return;
-      console.error('Error in received friend requests subscription:', error);
       if (onError) onError(error);
       onReceivedRequestsUpdate([]);
     });
@@ -671,15 +615,10 @@ export const subscribeToReceivedFriendRequests = (userId, onReceivedRequestsUpda
     };
 
   } catch (error) {
-    console.error('Error setting up received friend requests subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
 };
-
-// =============================================
-// USER PROFILE & BLOCKED USERS
-// =============================================
 
 /**
  * Subscribe to user profile updates
@@ -712,7 +651,6 @@ export const subscribeToUserProfile = (userId, onProfileUpdate, onError) => {
       }, 
       (error) => {
         if (!isActive) return;
-        console.error('Error in user profile subscription:', error);
         if (onError) onError(error);
       }
     );
@@ -723,7 +661,6 @@ export const subscribeToUserProfile = (userId, onProfileUpdate, onError) => {
     };
 
   } catch (error) {
-    console.error('Error setting up user profile subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
@@ -757,7 +694,6 @@ export const subscribeToBlockedUsers = (userId, onBlockedUpdate, onError) => {
       const userData = userDoc.data();
       const blockedUsers = userData.blocked || [];
 
-      // Clean up previous subscriptions
       unsubscribers.forEach(unsub => unsub());
       unsubscribers = [];
 
@@ -768,7 +704,6 @@ export const subscribeToBlockedUsers = (userId, onBlockedUpdate, onError) => {
 
       const blockedData = [];
 
-      // Subscribe to each blocked user
       blockedUsers.forEach(blockedId => {
         const blockedRef = doc(db, "users", blockedId);
         const unsubscribeBlocked = onSnapshot(blockedRef, (blockedDoc) => {
@@ -799,7 +734,6 @@ export const subscribeToBlockedUsers = (userId, onBlockedUpdate, onError) => {
       });
     }, (error) => {
       if (!isActive) return;
-      console.error('Error in blocked users subscription:', error);
       if (onError) onError(error);
       onBlockedUpdate([]);
     });
@@ -811,15 +745,10 @@ export const subscribeToBlockedUsers = (userId, onBlockedUpdate, onError) => {
     };
 
   } catch (error) {
-    console.error('Error setting up blocked users subscription:', error);
     if (onError) onError(error);
     return () => {};
   }
 };
-
-// =============================================
-// MASTER SUBSCRIPTION FUNCTION
-// =============================================
 
 /**
  * Subscribe to all real-time data at once
@@ -835,8 +764,6 @@ export const subscribeToAllRealtimeData = (userId, callbacks) => {
     onError 
   } = callbacks;
   
-  console.log('🚀 Starting all real-time subscriptions for user:', userId);
-  
   const unsubscribeFriends = subscribeToFriends(userId, onFriendsUpdate, onError);
   const unsubscribeChats = subscribeToChats(userId, onChatsUpdate, onError);
   const unsubscribeProfile = subscribeToUserProfile(userId, onProfileUpdate, onError);
@@ -844,9 +771,7 @@ export const subscribeToAllRealtimeData = (userId, callbacks) => {
   const unsubscribeReceivedRequests = subscribeToReceivedFriendRequests(userId, onReceivedRequestsUpdate, onError);
   const unsubscribeBlocked = subscribeToBlockedUsers(userId, onBlockedUpdate, onError);
 
-  // Return combined cleanup function
   return () => {
-    console.log('🧹 Cleaning up all real-time subscriptions');
     unsubscribeFriends();
     unsubscribeChats();
     unsubscribeProfile();

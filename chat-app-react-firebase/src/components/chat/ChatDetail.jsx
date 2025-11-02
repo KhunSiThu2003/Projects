@@ -29,7 +29,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
   const { user } = useUserStore();
   const { friends, chats, getFriendById, getChatById, subscribeToMessages } = useRealtimeStore();
 
-  // Helper function to extract friend details
   const extractFriendDetails = useCallback((selectedFriend, getFriendById, user) => {
     if (!selectedFriend) return null;
 
@@ -37,7 +36,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       let friendId = null;
       let friendData = null;
 
-      // Multiple ways to extract friend ID
       if (selectedFriend.otherParticipant?.uid) {
         friendId = selectedFriend.otherParticipant.uid;
       } else if (selectedFriend.uid) {
@@ -48,7 +46,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       if (!friendId) return null;
 
-      // Get friend from realtime store
       const friendFromStore = getFriendById(friendId);
       if (friendFromStore) {
         return {
@@ -65,12 +62,10 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       return null;
     } catch (error) {
-      console.error('Error extracting friend details:', error);
       return null;
     }
   }, []);
 
-  // Load friend details and media from realtime store
   const loadFriendDetailsAndMedia = useCallback(async () => {
     if (!selectedFriend) {
       setFriendDetails(null);
@@ -85,7 +80,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       setFriendDetails(friendData);
       await loadMediaMessages(selectedFriend.id);
     } catch (error) {
-      console.error('Error loading friend details:', error);
       toast.error('Failed to load user details');
     } finally {
       setLoading(false);
@@ -96,7 +90,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     loadFriendDetailsAndMedia();
   }, [loadFriendDetailsAndMedia]);
 
-  // Subscribe to messages for real-time updates
   useEffect(() => {
     if (!selectedFriend?.id || activeTab !== 'media') return;
 
@@ -106,7 +99,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       unsubscribe = subscribeToMessages(
         selectedFriend.id,
         (messagesData) => {
-          // Filter for image messages and sort by latest first
           const imageMessages = messagesData
             .filter(msg => msg && msg.type === 'image' && msg.image)
             .map(msg => ({
@@ -119,14 +111,12 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
           setMediaLoading(false);
         },
         (error) => {
-          console.error('Error loading media messages:', error);
           toast.error('Failed to load media');
           setMediaMessages([]);
           setMediaLoading(false);
         }
       );
     } catch (error) {
-      console.error('Error setting up message subscription:', error);
       setMediaLoading(false);
     }
 
@@ -135,7 +125,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     };
   }, [selectedFriend?.id, activeTab, subscribeToMessages]);
 
-  // Load media messages from realtime store - fallback method
   const loadMediaMessages = useCallback(async (chatId) => {
     if (!chatId) {
       setMediaMessages([]);
@@ -145,11 +134,9 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
     setMediaLoading(true);
     try {
-      // Method 1: Try to get chat with messages from realtime store
       const chat = getChatById(chatId);
 
       if (chat?.messages && Array.isArray(chat.messages)) {
-        // Filter for image messages and sort by latest first
         const imageMessages = chat.messages
           .filter(msg => msg && msg.type === 'image' && msg.image)
           .map(msg => ({
@@ -162,12 +149,9 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         return;
       }
 
-      // Method 2: If chat doesn't have messages, try to fetch directly from Firestore
-      console.log('Chat messages not found in store, media will load via subscription');
       setMediaMessages([]);
 
     } catch (error) {
-      console.error('Error loading media messages:', error);
       toast.error('Failed to load media');
       setMediaMessages([]);
     } finally {
@@ -175,11 +159,9 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     }
   }, [getChatById]);
 
-  // Refresh media when active tab changes to media
   useEffect(() => {
     if (selectedFriend?.id && activeTab === 'media') {
       setMediaLoading(true);
-      // The subscription in the other useEffect will handle the actual loading
     }
   }, [selectedFriend?.id, activeTab]);
 
@@ -198,7 +180,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       const result = await blockUser(user.uid, friendDetails.id);
       if (result.success) {
         toast.success(`Blocked ${friendDetails.name}`);
-        // Clear selected chat
         if (setSelectedChat) {
           setSelectedChat(null);
         }
@@ -207,7 +188,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         toast.error(result.error || 'Failed to block user');
       }
     } catch (error) {
-      console.error('Error blocking user:', error);
       toast.error('Failed to block user');
     } finally {
       setActionLoadingState('block', false);
@@ -222,7 +202,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       const result = await removeFriend(user.uid, friendDetails.id);
       if (result.success) {
         toast.success(`Removed ${friendDetails.name} from friends`);
-        // Clear selected chat
         if (setSelectedChat) {
           setSelectedChat(null);
         }
@@ -231,14 +210,12 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         toast.error(result.error || 'Failed to remove friend');
       }
     } catch (error) {
-      console.error('Error removing friend:', error);
       toast.error('Failed to remove friend');
     } finally {
       setActionLoadingState('remove', false);
     }
   };
 
-  // Delete all messages in the chat - FIXED VERSION
   const handleDeleteAllMessages = async () => {
     if (!selectedFriend?.id || !friendDetails) return;
 
@@ -247,7 +224,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
     setActionLoadingState('deleteAll', true);
     try {
-      // First, get all messages from Firestore directly
       const messagesRef = collection(db, "chats", selectedFriend.id, "messages");
       const messagesQuery = query(messagesRef, orderBy("timestamp", "asc"));
       const messagesSnapshot = await getDocs(messagesQuery);
@@ -257,9 +233,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         return;
       }
 
-      console.log(`Deleting ${messagesSnapshot.size} messages...`);
-
-      // Use batch delete for better performance
       const batch = writeBatch(db);
 
       messagesSnapshot.docs.forEach((doc) => {
@@ -268,7 +241,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
       await batch.commit();
 
-      // Update chat document to clear last message
       const chatRef = doc(db, "chats", selectedFriend.id);
       await updateDoc(chatRef, {
         lastMessage: '',
@@ -277,14 +249,10 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         updatedAt: serverTimestamp()
       });
 
-      // Clear media messages in UI
       setMediaMessages([]);
 
       toast.success('All messages deleted successfully');
     } catch (error) {
-      console.error('Error deleting all messages:', error);
-
-      // More specific error messages
       if (error.code === 'permission-denied') {
         toast.error('You do not have permission to delete these messages');
       } else if (error.code === 'not-found') {
@@ -313,12 +281,10 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       window.URL.revokeObjectURL(url);
       toast.success('Image downloaded successfully');
     } catch (error) {
-      console.error('Error downloading image:', error);
       toast.error('Failed to download image');
     }
   };
 
-  // Open image in modal
   const handleImageClick = (imageUrl, messageId = '') => {
     setImageModal({
       isOpen: true,
@@ -327,19 +293,16 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     });
   };
 
-  // Close image modal
   const handleCloseImageModal = () => {
-    setImageModal({ isOpen: false, imageUrl: '', imageName: '' });
+    setImageModal({ isOpen: false, imageUrl: '', imageName: ''     });
   };
 
-  // Handle background click to close modal
   const handleBackgroundClick = (e) => {
     if (e.target === e.currentTarget) {
       handleCloseImageModal();
     }
   };
 
-  // Handle download from modal
   const handleModalDownload = () => {
     handleDownloadImage(imageModal.imageUrl, imageModal.imageName);
   };
@@ -351,7 +314,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       const now = new Date();
       const lastSeenDate = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
 
-      // Check if date is valid
       if (isNaN(lastSeenDate.getTime())) {
         return 'Long time ago';
       }
@@ -458,7 +420,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
 
   return (
     <section className='w-full bg-white border-l border-gray-200 overflow-y-auto h-full'>
-      {/* Header with Back Button for Mobile */}
       <div className='p-4 border-b border-gray-200 flex items-center space-x-3 lg:hidden'>
         <button
           onClick={onBack}
@@ -471,7 +432,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         <h2 className='text-lg font-semibold text-gray-800'>Profile</h2>
       </div>
 
-      {/* Friend Profile Header */}
       <div className='p-6 border-b border-gray-200'>
         <div className='text-center'>
           <div className='flex justify-center mb-4'>
@@ -479,16 +439,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
           </div>
           <h2 className='text-xl font-semibold text-gray-800 mb-1'>{friendDetails.name}</h2>
           <div className='flex items-center justify-center space-x-2 mb-3'>
-            <span className="relative flex h-3 w-3">
-              {friendDetails.isOnline ? (
-                <>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                </>
-              ) : (
-                <span className="inline-flex rounded-full h-3 w-3 bg-gray-400"></span>
-              )}
-            </span>
+            
 
             <span className='text-sm text-gray-500'>
               {friendDetails.isOnline ? 'Online' : `Last seen ${formatLastSeen(friendDetails.lastSeen)}`}
@@ -498,7 +449,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         </div>
       </div>
 
-      {/* Tab Navigation */}
       <div className="border-b border-gray-200">
         <div className="flex">
           <button
@@ -516,11 +466,9 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
         </div>
       </div>
 
-      {/* Tab Content */}
       <div className="flex-1">
         {activeTab === 'info' ? (
           <>
-            {/* Contact Information */}
             <div className='p-6 border-b border-gray-200'>
               <h3 className='text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4'>
                 Contact Information
@@ -552,7 +500,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className='p-6 space-y-3'>
               <h3 className='text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4'>
                 Chat Actions
@@ -603,7 +550,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
             </div>
           </>
         ) : (
-          /* Media Tab */
           <div className="p-6">
             <h3 className='text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4'>
               Shared Media
@@ -646,7 +592,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
                       className="w-full h-full object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => handleImageClick(message.image, message.id)}
                       onError={(e) => {
-                        console.error('Error loading media image:', message.id);
                         e.target.style.display = 'none';
                       }}
                     />
@@ -697,7 +642,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
               alt="Full size"
               className="max-w-full max-h-full object-contain"
               onError={(e) => {
-                console.error('Error loading modal image:', imageModal.imageUrl);
                 toast.error('Failed to load image');
                 handleCloseImageModal();
               }}

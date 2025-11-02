@@ -22,12 +22,15 @@ export const useSearchFriend = () => {
 
     const { user } = useUserStore()
 
-    const setUserLoading = (userId, isLoading) => {
+    const setUserLoading = useCallback((userId, action, isLoading) => {
         setLoadingStates(prev => ({
             ...prev,
-            [userId]: isLoading
+            [userId]: {
+                ...prev[userId],
+                [action]: isLoading
+            }
         }))
-    }
+    }, [])
 
     const getFriendshipStatus = async (userData) => {
         try {
@@ -125,7 +128,7 @@ export const useSearchFriend = () => {
     }, [user?.uid, debounceTimer])
 
 const handleStartChat = useCallback(async (userData, onSelectChat) => {
-    setUserLoading(userData.uid, true)
+    setUserLoading(userData.uid, 'startChat', true)
     try {
         const chatResult = await createOrGetChat(user.uid, userData.uid)
 
@@ -152,23 +155,20 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
 
             if (onSelectChat && typeof onSelectChat === 'function') {
                 onSelectChat(chatData);
-            } else {
-                console.warn('onSelectChat is not a function or not defined');
             }
 
         } else {
             toast.error('Failed to start chat')
         }
     } catch (error) {
-        console.error('Error starting chat:', error);
         toast.error('Failed to start chat')
     } finally {
-        setUserLoading(userData.uid, false)
+        setUserLoading(userData.uid, 'startChat', false)
     }
-}, [user?.uid])
+}, [user?.uid, setUserLoading])
 
     const handleAddFriend = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'addFriend', true)
         try {
             const result = await sendFriendRequest(user.uid, userId)
 
@@ -194,12 +194,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to send friend request')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'addFriend', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const handleCancelRequest = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'cancel', true)
         try {
             const result = await cancelFriendRequest(user.uid, userId)
 
@@ -219,12 +219,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to cancel request')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'cancel', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const handleAcceptRequest = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'accept', true)
         try {
             const result = await acceptFriendRequest(user.uid, userId)
 
@@ -244,12 +244,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to accept request')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'accept', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const handleDeclineRequest = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'decline', true)
         try {
             const result = await rejectFriendRequest(user.uid, userId)
 
@@ -269,12 +269,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to decline request')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'decline', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const handleUnfriend = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'unfriend', true)
         try {
             const result = await removeFriend(user.uid, userId)
 
@@ -305,12 +305,12 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to remove friend')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'unfriend', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const handleUnblock = useCallback(async (userId, userName) => {
-        setUserLoading(userId, true)
+        setUserLoading(userId, 'unblock', true)
         try {
             const result = await unblockUser(user.uid, userId)
 
@@ -329,12 +329,13 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         } catch (error) {
             toast.error('Failed to unblock user')
         } finally {
-            setUserLoading(userId, false)
+            setUserLoading(userId, 'unblock', false)
         }
-    }, [user?.uid])
+    }, [user?.uid, setUserLoading])
 
     const getActionButtons = useCallback((userData,onSelectChat) => {
-        const isLoading = loadingStates[userData.uid]
+        const loadingStates_user = loadingStates[userData.uid] || {}
+        const isAnyLoading = loadingStates_user.addFriend || loadingStates_user.cancel || loadingStates_user.accept || loadingStates_user.decline || loadingStates_user.unfriend || loadingStates_user.unblock || loadingStates_user.startChat
 
         switch (userData.status) {
             case "add":
@@ -344,10 +345,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             e.stopPropagation();
                             handleAddFriend(userData.uid, userData.fullName);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates_user.addFriend ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Add Friend'
@@ -362,10 +363,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             e.stopPropagation();
                             handleCancelRequest(userData.uid, userData.fullName);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates_user.cancel ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Cancel'
@@ -381,10 +382,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                                 e.stopPropagation();
                                 handleAcceptRequest(userData.uid, userData.fullName);
                             }}
-                            disabled={isLoading}
+                            disabled={isAnyLoading}
                             className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
-                            {isLoading ? (
+                            {loadingStates_user.accept ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             ) : (
                                 'Accept'
@@ -395,10 +396,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                                 e.stopPropagation();
                                 handleDeclineRequest(userData.uid, userData.fullName);
                             }}
-                            disabled={isLoading}
+                            disabled={isAnyLoading}
                             className="px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
-                            {isLoading ? (
+                            {loadingStates_user.decline ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             ) : (
                                 'Decline'
@@ -416,10 +417,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                                 e.stopPropagation();
                                 handleUnfriend(userData.uid, userData.fullName);
                             }}
-                            disabled={isLoading}
+                            disabled={isAnyLoading}
                             className="px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
-                            {isLoading ? (
+                            {loadingStates_user.unfriend ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             ) : (
                                 'Unfriend'
@@ -435,10 +436,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             e.stopPropagation();
                             handleUnblock(userData.uid, userData.fullName);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates_user.unblock ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Unblock'
@@ -453,10 +454,10 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             e.stopPropagation();
                             handleAddFriend(userData.uid, userData.fullName);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates_user.addFriend ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Add Friend'

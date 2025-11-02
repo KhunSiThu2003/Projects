@@ -12,7 +12,6 @@ import {
 } from "../services/realtimeSubscriptions";
 
 const useRealtimeStore = create((set, get) => ({
-  // State
   friends: [],
   chats: [],
   userProfile: null,
@@ -23,7 +22,6 @@ const useRealtimeStore = create((set, get) => ({
   error: null,
   isSubscribed: false,
 
-  // Actions
   clearAllData: () => set({ 
     friends: [], 
     chats: [], 
@@ -32,10 +30,9 @@ const useRealtimeStore = create((set, get) => ({
     receivedFriendRequests: [],
     blockedUsers: [],
     error: null, 
-    loading: false 
+  loading: false 
   }),
 
-  // Friends actions
   getFriendById: (friendId) => {
     const { friends } = get();
     return friends.find(friend => friend.uid === friendId) || null;
@@ -56,11 +53,7 @@ const useRealtimeStore = create((set, get) => ({
     return friends.filter(friend => friend.status === 'offline');
   },
 
-  // Chats actions
-// Add these methods to your useRealtimeStore.js
-
-// Enhanced chat actions
-getChatById: (chatId) => {
+  getChatById: (chatId) => {
   const { chats } = get();
   return chats.find(chat => chat.id === chatId) || null;
 },
@@ -80,7 +73,6 @@ updateChatParticipantStatus: (chatId, participantId, status, lastSeen) => {
     chats: state.chats.map(chat => {
       if (chat.id !== chatId) return chat;
       
-      // Update otherParticipant status if this is the participant
       if (chat.otherParticipant?.uid === participantId) {
         return {
           ...chat,
@@ -97,7 +89,6 @@ updateChatParticipantStatus: (chatId, participantId, status, lastSeen) => {
   }));
 },
 
-// Update last message for a chat
 updateChatLastMessage: (chatId, lastMessage, lastMessageAt) => {
   set(state => ({
     chats: state.chats.map(chat => 
@@ -106,11 +97,10 @@ updateChatLastMessage: (chatId, lastMessage, lastMessageAt) => {
             ...chat, 
             lastMessage,
             lastMessageAt,
-            lastUpdated: lastMessageAt || serverTimestamp()
+            lastUpdated: lastMessageAt
           }
         : chat
     ).sort((a, b) => {
-      // Re-sort chats by last update time
       const timeA = a.lastUpdated?.toDate?.() || a.lastMessageAt?.toDate?.() || new Date(0);
       const timeB = b.lastUpdated?.toDate?.() || b.lastMessageAt?.toDate?.() || new Date(0);
       return timeB - timeA;
@@ -154,7 +144,6 @@ updateChatMessages: (chatId, messages) => {
   }));
 },
 
-  // Friend requests actions
   hasPendingRequests: () => {
     const { friendRequests } = get();
     return friendRequests.received.length > 0;
@@ -165,7 +154,6 @@ updateChatMessages: (chatId, messages) => {
     return friendRequests.received.length;
   },
 
-  // Received friend requests actions
   hasReceivedRequests: () => {
     const { receivedFriendRequests } = get();
     return receivedFriendRequests.length > 0;
@@ -181,22 +169,18 @@ updateChatMessages: (chatId, messages) => {
     return receivedFriendRequests.find(request => request.uid === userId) || null;
   },
 
-  // Blocked users actions
   isUserBlocked: (userId) => {
     const { blockedUsers } = get();
     return blockedUsers.some(user => user.uid === userId);
   },
 
-  // Real-time subscription to all data
   subscribeToAllData: (userId) => {
     if (!userId) {
-      console.error('User ID is required for real-time subscription');
       return () => {};
     }
 
     const { isSubscribed } = get();
     if (isSubscribed) {
-      console.log('Already subscribed to real-time data');
       return () => {};
     }
 
@@ -249,7 +233,6 @@ updateChatMessages: (chatId, messages) => {
         }));
       },
       onError: (error) => {
-        console.error('Real-time subscription error:', error);
         set({ 
           error: error.message, 
           loading: false 
@@ -257,7 +240,6 @@ updateChatMessages: (chatId, messages) => {
       }
     });
 
-    // Return unsubscribe function
     return () => {
       unsubscribe();
       set({ 
@@ -267,7 +249,6 @@ updateChatMessages: (chatId, messages) => {
     };
   },
 
-  // Individual subscriptions (if needed)
   subscribeToFriends: (userId) => {
     return subscribeToFriends(userId, 
       (friends) => set({ friends }),

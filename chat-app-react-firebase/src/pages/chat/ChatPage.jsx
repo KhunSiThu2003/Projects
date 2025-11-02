@@ -26,7 +26,6 @@ const ChatPage = () => {
     }
   }, [])
 
-  // Handle chat selection from any component
   const handleSelectChat = useCallback((chat) => {
     setSelectedChat(chat)
     if (isMobile) {
@@ -52,14 +51,11 @@ const ChatPage = () => {
     }
   }, [isMobile])
 
-  // Listen for real-time updates to selected chat using realtime store
   useEffect(() => {
     if (!selectedChat?.id) return
 
-    // Get the latest chat data from the store whenever chats update
     const updatedChat = getChatById(selectedChat.id)
     if (updatedChat) {
-      // Check if important data has changed
       const hasImportantChanges =
         updatedChat.participants?.length !== selectedChat.participants?.length ||
         updatedChat.lastMessage !== selectedChat.lastMessage ||
@@ -67,18 +63,15 @@ const ChatPage = () => {
         updatedChat.otherParticipant?.isOnline !== selectedChat.otherParticipant?.isOnline
 
       if (hasImportantChanges) {
-        console.log('Chat data updated from realtime store, updating selectedChat')
         setSelectedChat(prev => ({
           ...prev,
           ...updatedChat,
-          // Preserve the otherParticipant object if it exists and merge updates
           otherParticipant: updatedChat.otherParticipant || prev.otherParticipant
         }))
       }
     }
   }, [chats, selectedChat?.id, getChatById])
 
-  // For desktop - show all three columns
   if (!isMobile) {
     return (
       <div className='flex h-screen bg-gray-50'>
@@ -114,7 +107,6 @@ const ChatPage = () => {
     )
   }
 
-  // For mobile/tablet - show one view at a time
   return (
     <div className='h-screen bg-gray-50 relative'>
       {/* Chat List View */}

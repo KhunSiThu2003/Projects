@@ -32,7 +32,6 @@ export const useLogin = () => {
                         state: { email: result.user.email }
                     });
                 } else {
-                    // Properly handle user data
                     const userData = await getUserById(result.user.uid);
                     if (userData) {
                         setUser(userData);
@@ -50,7 +49,6 @@ export const useLogin = () => {
                 toast.error(result.message || 'Login failed');
             }
         } catch (err) {
-            console.error("Unexpected login error:", err);
             toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);
@@ -76,7 +74,6 @@ export const useLogin = () => {
                 toast.error(result.message || 'Google login failed');
             }
         } catch (err) {
-            console.error("Unexpected Google login error:", err);
             toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);

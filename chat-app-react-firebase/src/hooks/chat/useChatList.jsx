@@ -12,7 +12,7 @@ export const useChatList = () => {
     const [activeChat, setActiveChat] = useState(null)
     const [loading, setLoading] = useState(true)
     const { user } = useUserStore()
-    const { friends, chats, subscribeToAllData } = useRealtimeStore()
+    const { friends, chats, subscribeToAllData, userProfile } = useRealtimeStore()
 
     const formatTimestamp = useCallback((timestamp) => {
         if (!timestamp) return 'Just now'
@@ -43,22 +43,17 @@ export const useChatList = () => {
     const processChatData = useCallback(async (chat) => {
         try {
             if (!user?.uid) {
-                console.log('No user UID available');
                 return null;
             }
 
             const otherParticipantId = chat.participantsArray?.find(id => id !== user.uid)
             if (!otherParticipantId) {
-                console.log('No other participant found for chat:', chat.id);
                 return null
             }
 
-            // Check if other participant is in friends list
             const isFriend = friends?.some(friend => friend.uid === otherParticipantId)
-            console.log(`Chat ${chat.id}: Is friend?`, isFriend, 'Other participant:', otherParticipantId);
             
             if (!isFriend) {
-                console.log(`Chat ${chat.id}: Other participant is not in friends list`);
                 return null
             }
 
@@ -79,7 +74,6 @@ export const useChatList = () => {
                     }
                     chatName = friendFromStore.fullName || 'Unknown User'
                 } else {
-                    console.log(`Fetching user data from Firestore for: ${otherParticipantId}`);
                     const userDocRef = doc(db, "users", otherParticipantId)
                     const userDoc = await getDoc(userDocRef)
                     if (userDoc.exists()) {
@@ -95,12 +89,10 @@ export const useChatList = () => {
                         }
                         chatName = userData.fullName || 'Unknown User'
                     } else {
-                        console.log(`User document not found for: ${otherParticipantId}`);
                         return null
                     }
                 }
             } catch (userError) {
-                console.error('Error fetching user data:', userError)
                 return null
             }
 
@@ -114,39 +106,38 @@ export const useChatList = () => {
                 unread: chat.unreadCount?.[user.uid] || 0
             }
 
-            console.log('Successfully processed chat:', processedChat.id, processedChat.name);
             return processedChat
         } catch (error) {
-            console.error('Error processing chat data:', error)
             return null
         }
     }, [user?.uid, formatTimestamp, friends])
 
     const processChats = useCallback(async () => {
-        console.log('processChats called with:', {
-            user: user?.uid,
-            chatsCount: chats?.length,
-            friendsCount: friends?.length
-        });
-
         if (!user?.uid) {
-            console.log('No user UID, clearing chats');
             setProcessedChats([])
             setLoading(false)
             return
         }
 
-        if (!chats || chats.length === 0) {
-            console.log('No chats available');
-            setProcessedChats([])
-            setLoading(false)
+        // Show loading skeleton while initial data is being loaded
+        // If userProfile doesn't exist, data hasn't loaded yet from Firebase
+        if (!userProfile) {
+            setLoading(true)
             return
         }
 
-        setLoading(true)
+        if (chats && chats.length > 0) {
+            setLoading(true)
+        }
+
         try {
+            if (!chats || chats.length === 0) {
+                setProcessedChats([])
+                setLoading(false)
+                return
+            }
+
             const processed = []
-            console.log(`Processing ${chats.length} chats...`);
             
             for (const chat of chats) {
                 const processedChat = await processChatData(chat)
@@ -154,8 +145,6 @@ export const useChatList = () => {
                     processed.push(processedChat)
                 }
             }
-
-            console.log(`Successfully processed ${processed.length} chats`);
 
             const sortedChats = processed.sort((a, b) => {
                 const timeA = a.lastMessageAt?.toDate?.() || a.lastUpdated?.toDate?.() || new Date(0)
@@ -165,17 +154,24 @@ export const useChatList = () => {
 
             setProcessedChats(sortedChats)
         } catch (error) {
-            console.error('Error processing chats:', error)
             toast.error('Error loading conversations')
         } finally {
             setLoading(false)
         }
-    }, [chats, user?.uid, processChatData])
+    }, [chats, user?.uid, processChatData, userProfile])
 
-    // Auto-process chats when chats, user, or friends change
     useEffect(() => {
         processChats();
     }, [processChats]);
+
+    useEffect(() => {
+        if (!user?.uid) {
+            setLoading(true)
+        } else if (!userProfile) {
+            // Keep loading true while waiting for initial data load
+            setLoading(true)
+        }
+    }, [user?.uid, chats, userProfile])
 
     const getAvatarContent = useCallback((chat) => {
         if (chat.otherParticipant?.profilePic) {
@@ -186,7 +182,6 @@ export const useChatList = () => {
                     className="w-12 h-12 rounded-full object-cover"
                     onError={(e) => {
                         e.target.style.display = 'none';
-                        // Show fallback avatar
                         const fallback = e.target.nextSibling;
                         if (fallback) fallback.style.display = 'flex';
                     }}

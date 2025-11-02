@@ -26,7 +26,6 @@ const RegisterWithEmailAndPassword = async (data) => {
     try {
       await sendEmailVerification(res.user);
     } catch (error) {
-      console.error("Email verification failed:", error);
     }
 
     await setDoc(doc(db, "users", res.user.uid), {
@@ -49,8 +48,6 @@ const RegisterWithEmailAndPassword = async (data) => {
     return { success: true, user: res.user };
 
   } catch (error) {
-    console.error("Registration error:", error);
-
     let message = "Registration failed. Please try again.";
     switch (error.code) {
       case "auth/email-already-in-use":
@@ -113,8 +110,6 @@ const RegisterWithGoogle = async () => {
     return { success: true, user, existing: false };
 
   } catch (error) {
-    console.error("Google registration error:", error);
-
     let message = "Google registration failed. Please try again.";
     switch (error.code) {
       case "auth/popup-closed-by-user":
@@ -161,7 +156,6 @@ const LoginWithEmailAndPassword = async (email, password) => {
           message: 'Please verify your email. A new verification email has been sent.'
         };
       } catch (verErr) {
-        console.error('Error sending verification email:', verErr);
         return { 
           success: true, 
           user, 
@@ -174,8 +168,6 @@ const LoginWithEmailAndPassword = async (email, password) => {
     return { success: true, user };
 
   } catch (error) {
-    console.error('Login error:', error);
-
     let message = 'Sign in failed. Please try again.';
     switch (error.code) {
       case 'auth/wrong-password':
@@ -246,8 +238,6 @@ const LoginWithGoogle = async () => {
     return { success: true, user };
 
   } catch (error) {
-    console.error("Google login error:", error);
-
     let message = "Google sign-in failed. Please try again.";
 
     switch (error.code) {
@@ -277,8 +267,6 @@ const ForgotPassword = async (email) => {
     await sendPasswordResetEmail(auth, email);
     return { success: true, message: 'Password reset email sent successfully!' };
   } catch (error) {
-    console.error('Password reset error:', error);
-
     let message = 'Failed to send reset email. Please try again.';
     switch (error.code) {
       case 'auth/user-not-found':
@@ -316,8 +304,6 @@ const ResetPassword = async (oobCode, newPassword) => {
         message: 'Password reset successfully! You can now sign in with your new password.' 
     };
   } catch (error) {
-    console.error('Password reset error:', error);
-
     let message = 'Failed to reset password. Please try again.';
     switch (error.code) {
       case 'auth/expired-action-code':
@@ -358,8 +344,6 @@ const SendEmailVerification = async () => {
     return { success: true, message: 'Verification email sent successfully!' };
     
   } catch (error) {
-    console.error('Email verification error:', error);
-    
     let message = 'Failed to send verification email. Please try again.';
     switch (error.code) {
       case 'auth/too-many-requests':
@@ -391,7 +375,6 @@ const LogoutUser = async () => {
     await signOut(auth);
     return { success: true, message: 'Logged out successfully!' };
   } catch (error) {
-    console.error('Logout error:', error);
     return { success: false, error, message: 'Failed to log out. Please try again.' };
   }
 };

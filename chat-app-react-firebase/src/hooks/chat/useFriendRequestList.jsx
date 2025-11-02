@@ -52,15 +52,18 @@ export const useFriendRequestList = ({ onSelectChat }) => {
         }
     }, [])
 
-    const setRequestLoading = useCallback((requestId, isLoading) => {
+    const setRequestLoading = useCallback((requestId, action, isLoading) => {
         setActionLoading(prev => ({
             ...prev,
-            [requestId]: isLoading
+            [requestId]: {
+                ...prev[requestId],
+                [action]: isLoading
+            }
         }))
     }, [])
 
     const handleAcceptRequest = useCallback(async (requestId, requestName) => {
-        setRequestLoading(requestId, true)
+        setRequestLoading(requestId, 'accept', true)
         try {
             const acceptResult = await acceptFriendRequest(user.uid, requestId)
             if (acceptResult.success) {
@@ -87,48 +90,48 @@ export const useFriendRequestList = ({ onSelectChat }) => {
         } catch (error) {
             toast.error('Failed to accept friend request')
         } finally {
-            setRequestLoading(requestId, false)
+            setRequestLoading(requestId, 'accept', false)
         }
     }, [user?.uid, onSelectChat, setRequestLoading])
 
     const handleDeclineRequest = useCallback(async (requestId, requestName) => {
-        setRequestLoading(requestId, true)
+        setRequestLoading(requestId, 'decline', true)
         try {
             const result = await rejectFriendRequest(user.uid, requestId)
 
         } catch (error) {
             toast.error('Failed to decline request')
         } finally {
-            setRequestLoading(requestId, false)
+            setRequestLoading(requestId, 'decline', false)
         }
     }, [user?.uid, setRequestLoading])
 
     const handleCancelRequest = useCallback(async (requestId, requestName) => {
-        setRequestLoading(requestId, true)
+        setRequestLoading(requestId, 'cancel', true)
         try {
             const result = await cancelFriendRequest(user.uid, requestId)
 
         } catch (error) {
             toast.error('Failed to cancel request')
         } finally {
-            setRequestLoading(requestId, false)
+            setRequestLoading(requestId, 'cancel', false)
         }
     }, [user?.uid, setRequestLoading])
 
     const handleBlockUser = useCallback(async (requestId, requestName) => {
-        setRequestLoading(requestId, true)
+        setRequestLoading(requestId, 'block', true)
         try {
             const result = await blockUser(user.uid, requestId)
 
         } catch (error) {
             toast.error('Failed to block user')
         } finally {
-            setRequestLoading(requestId, false)
+            setRequestLoading(requestId, 'block', false)
         }
     }, [user?.uid, setRequestLoading])
 
     const handleMessage = useCallback(async (userData) => {
-        setRequestLoading(userData.id, true)
+        setRequestLoading(userData.id, 'message', true)
         try {
             const chatResult = await createOrGetChat(user.uid, userData.id)
             if (chatResult) {
@@ -153,7 +156,7 @@ export const useFriendRequestList = ({ onSelectChat }) => {
         } catch (error) {
             toast.error('Failed to start chat')
         } finally {
-            setRequestLoading(userData.id, false)
+            setRequestLoading(userData.id, 'message', false)
         }
     }, [user?.uid, onSelectChat, setRequestLoading])
 
@@ -178,7 +181,8 @@ export const useFriendRequestList = ({ onSelectChat }) => {
         : formatRequests(friendRequests.sent || [])
 
     const getActionButtons = useCallback((request, tab) => {
-        const isLoading = actionLoading[request.id]
+        const loadingStates = actionLoading[request.id] || {}
+        const isAnyLoading = loadingStates.accept || loadingStates.decline || loadingStates.block || loadingStates.cancel || loadingStates.message
 
         if (tab === 'received') {
             return (
@@ -188,10 +192,10 @@ export const useFriendRequestList = ({ onSelectChat }) => {
                             e.stopPropagation();
                             handleAcceptRequest(request.id, request.name);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates.accept ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Accept'
@@ -202,10 +206,10 @@ export const useFriendRequestList = ({ onSelectChat }) => {
                             e.stopPropagation();
                             handleDeclineRequest(request.id, request.name);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates.decline ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Decline'
@@ -216,10 +220,10 @@ export const useFriendRequestList = ({ onSelectChat }) => {
                             e.stopPropagation();
                             handleBlockUser(request.id, request.name);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates.block ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Block'
@@ -235,10 +239,10 @@ export const useFriendRequestList = ({ onSelectChat }) => {
                             e.stopPropagation();
                             handleCancelRequest(request.id, request.name);
                         }}
-                        disabled={isLoading}
+                        disabled={isAnyLoading}
                         className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
-                        {isLoading ? (
+                        {loadingStates.cancel ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             'Cancel'

@@ -1,4 +1,3 @@
-// services/chatService.js
 import { 
   collection, 
   query, 
@@ -14,7 +13,6 @@ import { db } from "../firebase/config";
 
 export const createOrGetChat = async (userId, friendId) => {
   try {
-    // Check if chat already exists
     const chatsRef = collection(db, "chats");
     const q = query(
       chatsRef, 
@@ -23,7 +21,6 @@ export const createOrGetChat = async (userId, friendId) => {
     
     const querySnapshot = await getDocs(q);
     
-    // Look for existing chat with both users
     let existingChat = null;
     querySnapshot.forEach((doc) => {
       const chatData = doc.data();
@@ -36,7 +33,6 @@ export const createOrGetChat = async (userId, friendId) => {
       return existingChat;
     }
 
-    // Create new chat
     const newChat = {
       participantsArray: [userId, friendId],
       participantsData: {
@@ -61,7 +57,6 @@ export const createOrGetChat = async (userId, friendId) => {
       ...newChat
     };
   } catch (error) {
-    console.error('Error creating or getting chat:', error);
     throw error;
   }
 };
