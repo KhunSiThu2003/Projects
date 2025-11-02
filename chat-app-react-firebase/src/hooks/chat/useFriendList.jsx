@@ -3,7 +3,6 @@ import useRealtimeStore from '../../stores/useRealtimeStore';
 import useUserStore from '../../stores/useUserStore';
 import { createOrGetChat } from '../../services/chatService';
 import { removeFriend } from '../../services/friend';
-import { toast } from 'react-hot-toast';
 
 export const useFriendList = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -83,7 +82,6 @@ export const useFriendList = () => {
 
             }
         } catch (error) {
-            toast.error('Failed to start chat');
         } finally {
             setFriendLoading(friend.uid, 'startChat', false);
         }
@@ -94,12 +92,8 @@ export const useFriendList = () => {
 
         setFriendLoading(friend.uid, 'unfriend', true);
         try {
-            const result = await removeFriend(user.uid, friend.uid);
-            if (!result.success) {
-                toast.error(result.error || 'Failed to remove friend');
-            }
+            await removeFriend(user.uid, friend.uid);
         } catch (error) {
-            toast.error('Failed to remove friend');
         } finally {
             setFriendLoading(friend.uid, 'unfriend', false);
         }

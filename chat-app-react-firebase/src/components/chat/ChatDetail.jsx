@@ -14,7 +14,6 @@ import { db } from '../../firebase/config';
 import useUserStore from '../../stores/useUserStore';
 import useRealtimeStore from '../../stores/useRealtimeStore';
 import { blockUser, removeFriend } from '../../services/friend';
-import { toast } from 'react-hot-toast';
 import { FaBan, FaUserMinus, FaImages, FaDownload, FaTrash, FaExpand, FaTimes } from "react-icons/fa";
 
 const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
@@ -80,7 +79,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       setFriendDetails(friendData);
       await loadMediaMessages(selectedFriend.id);
     } catch (error) {
-      toast.error('Failed to load user details');
     } finally {
       setLoading(false);
     }
@@ -111,7 +109,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
           setMediaLoading(false);
         },
         (error) => {
-          toast.error('Failed to load media');
           setMediaMessages([]);
           setMediaLoading(false);
         }
@@ -152,7 +149,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       setMediaMessages([]);
 
     } catch (error) {
-      toast.error('Failed to load media');
       setMediaMessages([]);
     } finally {
       setMediaLoading(false);
@@ -179,16 +175,12 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     try {
       const result = await blockUser(user.uid, friendDetails.id);
       if (result.success) {
-        toast.success(`Blocked ${friendDetails.name}`);
         if (setSelectedChat) {
           setSelectedChat(null);
         }
         if (onBack) onBack();
-      } else {
-        toast.error(result.error || 'Failed to block user');
       }
     } catch (error) {
-      toast.error('Failed to block user');
     } finally {
       setActionLoadingState('block', false);
     }
@@ -201,16 +193,12 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
     try {
       const result = await removeFriend(user.uid, friendDetails.id);
       if (result.success) {
-        toast.success(`Removed ${friendDetails.name} from friends`);
         if (setSelectedChat) {
           setSelectedChat(null);
         }
         if (onBack) onBack();
-      } else {
-        toast.error(result.error || 'Failed to remove friend');
       }
     } catch (error) {
-      toast.error('Failed to remove friend');
     } finally {
       setActionLoadingState('remove', false);
     }
@@ -229,7 +217,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       const messagesSnapshot = await getDocs(messagesQuery);
 
       if (messagesSnapshot.empty) {
-        toast.error('No messages found to delete');
         return;
       }
 
@@ -250,16 +237,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       });
 
       setMediaMessages([]);
-
-      toast.success('All messages deleted successfully');
     } catch (error) {
-      if (error.code === 'permission-denied') {
-        toast.error('You do not have permission to delete these messages');
-      } else if (error.code === 'not-found') {
-        toast.error('Chat or messages not found');
-      } else {
-        toast.error('Failed to delete messages: ' + error.message);
-      }
     } finally {
       setActionLoadingState('deleteAll', false);
     }
@@ -279,9 +257,7 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success('Image downloaded successfully');
     } catch (error) {
-      toast.error('Failed to download image');
     }
   };
 
@@ -642,7 +618,6 @@ const ChatDetail = React.memo(({ selectedFriend, onBack, setSelectedChat }) => {
               alt="Full size"
               className="max-w-full max-h-full object-contain"
               onError={(e) => {
-                toast.error('Failed to load image');
                 handleCloseImageModal();
               }}
             />

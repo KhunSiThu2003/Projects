@@ -22,7 +22,6 @@ import {
   FaSpinner, FaEnvelope, FaPhone, FaMapMarkerAlt, FaIdCard
 } from 'react-icons/fa'
 
-import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import useUserStore from '../../stores/useUserStore'
 import useRealtimeStore from '../../stores/useRealtimeStore'
@@ -77,11 +76,8 @@ const SideBar = ({ setShowList, activeView }) => {
 
         setFormData(userInfo)
         setOriginalData(userInfo)
-      } else {
-        toast.error('Failed to load user data')
       }
     } catch (error) {
-      toast.error('Error loading profile data')
     } finally {
       setIsLoading(false)
     }
@@ -110,12 +106,10 @@ const SideBar = ({ setShowList, activeView }) => {
       setIsLoading(true)
 
       if (!formData.fullName.trim()) {
-        toast.error('Full name is required')
         return
       }
 
       if (!formData.email.trim()) {
-        toast.error('Email is required')
         return
       }
 
@@ -129,7 +123,6 @@ const SideBar = ({ setShowList, activeView }) => {
       const result = await updateUserProfile(user?.uid, updates)
 
       if (result.success) {
-        toast.success('Profile updated successfully!')
         setOriginalData(formData)
         setIsEditing(false)
 
@@ -137,11 +130,8 @@ const SideBar = ({ setShowList, activeView }) => {
         if (updatedUser.success) {
           setUser(updatedUser.user)
         }
-      } else {
-        toast.error(result.error || 'Failed to update profile')
       }
     } catch (error) {
-      toast.error('Error updating profile')
     } finally {
       setIsLoading(false)
     }
@@ -176,7 +166,6 @@ const SideBar = ({ setShowList, activeView }) => {
       const res = await deleteUserAccount(user?.uid);
 
       if (!res.success) {
-        toast.error(res.error || 'Failed to delete account')
         return
       }
 
@@ -189,7 +178,6 @@ const SideBar = ({ setShowList, activeView }) => {
       navigate('/')
 
     } catch (error) {
-      toast.error(error.message || 'Failed to delete account')
     } finally {
       setIsDeleting(false)
     }
@@ -280,11 +268,9 @@ const SideBar = ({ setShowList, activeView }) => {
       removeUser();
       setUserCookie('', { days: 0 });
 
-      toast.success('Logged out successfully')
       setShowLogoutModal(false)
       navigate('/')
     } catch (error) {
-      toast.error(error.message || 'Logout failed. Please try again.')
       setShowLogoutModal(false)
     } finally {
       setIsLoggingOut(false)

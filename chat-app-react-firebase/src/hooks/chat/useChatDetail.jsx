@@ -14,7 +14,6 @@ import { db } from '../../firebase/config';
 import useUserStore from '../../stores/useUserStore';
 import useRealtimeStore from '../../stores/useRealtimeStore';
 import { blockUser, removeFriend } from '../../services/friend';
-import { toast } from 'react-hot-toast';
 
 export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
   const [friendDetails, setFriendDetails] = useState(null);
@@ -79,7 +78,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
       setFriendDetails(friendData);
       await loadMediaMessages(selectedFriend.id);
     } catch (error) {
-      toast.error('Failed to load user details');
     } finally {
       setLoading(false);
     }
@@ -110,7 +108,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
           setMediaLoading(false);
         },
         (error) => {
-          toast.error('Failed to load media');
           setMediaMessages([]);
           setMediaLoading(false);
         }
@@ -151,7 +148,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
       setMediaMessages([]);
       
     } catch (error) {
-      toast.error('Failed to load media');
       setMediaMessages([]);
     } finally {
       setMediaLoading(false);
@@ -182,11 +178,8 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
           setSelectedChat(null);
         }
         if (onBack) onBack();
-      } else {
-        toast.error(result.error || 'Failed to block user');
       }
     } catch (error) {
-      toast.error('Failed to block user');
     } finally {
       setActionLoadingState('block', false);
     }
@@ -203,11 +196,8 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
           setSelectedChat(null);
         }
         if (onBack) onBack();
-      } else {
-        toast.error(result.error || 'Failed to remove friend');
       }
     } catch (error) {
-      toast.error('Failed to remove friend');
     } finally {
       setActionLoadingState('remove', false);
     }
@@ -226,7 +216,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
       const messagesSnapshot = await getDocs(messagesQuery);
 
       if (messagesSnapshot.empty) {
-        toast.error('No messages found to delete');
         return;
       }
 
@@ -249,13 +238,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
       setMediaMessages([]);
       
     } catch (error) {
-      if (error.code === 'permission-denied') {
-        toast.error('You do not have permission to delete these messages');
-      } else if (error.code === 'not-found') {
-        toast.error('Chat or messages not found');
-      } else {
-        toast.error('Failed to delete messages: ' + error.message);
-      }
     } finally {
       setActionLoadingState('deleteAll', false);
     }
@@ -276,7 +258,6 @@ export const useChatDetail = (selectedFriend, onBack, setSelectedChat) => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      toast.error('Failed to download image');
     }
   };
 
