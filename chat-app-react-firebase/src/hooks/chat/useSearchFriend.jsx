@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { searchUsersByEmailOrName } from '../../services/user'
 import {
     sendFriendRequest,
@@ -10,6 +10,7 @@ import {
     checkFriendshipStatus,
 } from '../../services/friend'
 import { createOrGetChat } from '../../services/chatService'
+import { subscribeToUserProfile } from '../../services/realtimeSubscriptions'
 import useUserStore from '../../stores/useUserStore'
 import { toast } from 'react-hot-toast'
 
@@ -19,6 +20,7 @@ export const useSearchFriend = () => {
     const [isSearching, setIsSearching] = useState(false)
     const [loadingStates, setLoadingStates] = useState({})
     const [debounceTimer, setDebounceTimer] = useState(null)
+    const unsubscribeRefs = useRef([])
 
     const { user } = useUserStore()
 
@@ -71,6 +73,51 @@ export const useSearchFriend = () => {
         } catch (error) {}
     }
 
+    // Set up real-time subscriptions for search results
+    const setupRealtimeSubscriptions = useCallback((users) => {
+        // Clean up previous subscriptions
+        unsubscribeRefs.current.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
+        unsubscribeRefs.current = [];
+
+        // Subscribe to each user's profile updates
+        users.forEach((userData) => {
+            if (userData.uid) {
+                const unsubscribe = subscribeToUserProfile(
+                    userData.uid,
+                    (updatedProfile) => {
+                        setSearchResults(prev =>
+                            prev.map(u => {
+                                if (u.uid === updatedProfile.uid) {
+                                    return {
+                                        ...u,
+                                        fullName: updatedProfile.fullName || u.fullName,
+                                        email: updatedProfile.email || u.email,
+                                        profilePic: updatedProfile.profilePic || u.profilePic,
+                                        status: updatedProfile.status || u.status,
+                                        lastSeen: updatedProfile.lastSeen || u.lastSeen,
+                                        bio: updatedProfile.bio || u.bio,
+                                        isOnline: updatedProfile.status === 'online',
+                                        avatar: updatedProfile.fullName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'
+                                    };
+                                }
+                                return u;
+                            })
+                        );
+                    },
+                    (error) => {
+                        // Silently handle errors - don't break the UI
+                        console.log('Error in real-time subscription:', error);
+                    }
+                );
+                unsubscribeRefs.current.push(unsubscribe);
+            }
+        });
+    }, [])
+
     const handleSearch = useCallback(async (term) => {
         setSearchTerm(term)
 
@@ -112,6 +159,9 @@ export const useSearchFriend = () => {
                         })
                     )
                     setSearchResults(usersWithStatus)
+                    
+                    // Set up real-time subscriptions for each user
+                    setupRealtimeSubscriptions(usersWithStatus)
                 } else {
                     toast.error('Failed to search users')
                     setSearchResults([])
@@ -125,7 +175,7 @@ export const useSearchFriend = () => {
         }, 500)
 
         setDebounceTimer(timer)
-    }, [user?.uid, debounceTimer])
+    }, [user?.uid, debounceTimer, setupRealtimeSubscriptions])
 
 const handleStartChat = useCallback(async (userData, onSelectChat) => {
     setUserLoading(userData.uid, 'startChat', true)
@@ -346,7 +396,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             handleAddFriend(userData.uid, userData.fullName);
                         }}
                         disabled={isAnyLoading}
-                        className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
+                        className="px-3 py-2 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
                         {loadingStates_user.addFriend ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -364,7 +414,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                             handleCancelRequest(userData.uid, userData.fullName);
                         }}
                         disabled={isAnyLoading}
-                        className="px-3 py-2 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
+                        className="px-3 py-2 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-20 flex items-center justify-center"
                     >
                         {loadingStates_user.cancel ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -383,7 +433,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                                 handleAcceptRequest(userData.uid, userData.fullName);
                             }}
                             disabled={isAnyLoading}
-                            className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
+                            className="px-3 py-2 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
                             {loadingStates_user.accept ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -397,7 +447,7 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
                                 handleDeclineRequest(userData.uid, userData.fullName);
                             }}
                             disabled={isAnyLoading}
-                            className="px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
+                            className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
                             {loadingStates_user.decline ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -411,14 +461,13 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
             case "friend":
                 return (
                     <div className="flex space-x-2">
-                        
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleUnfriend(userData.uid, userData.fullName);
                             }}
                             disabled={isAnyLoading}
-                            className="px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
+                            className="px-3 py-2 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-w-16 flex items-center justify-center"
                         >
                             {loadingStates_user.unfriend ? (
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -489,13 +538,33 @@ const handleStartChat = useCallback(async (userData, onSelectChat) => {
         )
     }, [])
 
+    // Cleanup subscriptions when component unmounts or search term changes
     useEffect(() => {
         return () => {
             if (debounceTimer) {
                 clearTimeout(debounceTimer)
             }
+            // Clean up all real-time subscriptions
+            unsubscribeRefs.current.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            unsubscribeRefs.current = [];
         }
     }, [debounceTimer])
+
+    // Clean up subscriptions when search term is cleared
+    useEffect(() => {
+        if (!searchTerm.trim()) {
+            unsubscribeRefs.current.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            unsubscribeRefs.current = [];
+        }
+    }, [searchTerm])
 
     return {
         searchTerm,

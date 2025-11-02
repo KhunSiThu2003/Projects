@@ -6,9 +6,76 @@ import {
   arrayUnion, 
   arrayRemove, 
   serverTimestamp,
-  runTransaction 
+  runTransaction,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+  deleteDoc
 } from "firebase/firestore";
 import { db } from "../firebase/config";
+
+/**
+ * Delete all messages in a chat between two users
+ */
+const deleteChatMessages = async (userId, friendId) => {
+  try {
+    // Find the chat document
+    const chatsRef = collection(db, "chats");
+    const q = query(
+      chatsRef, 
+      where("participantsArray", "array-contains", userId)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    let chatDoc = null;
+    
+    querySnapshot.forEach((doc) => {
+      const chatData = doc.data();
+      if (chatData.participantsArray?.includes(friendId)) {
+        chatDoc = doc;
+      }
+    });
+
+    if (!chatDoc) {
+      // No chat found, nothing to delete
+      return;
+    }
+
+    const chatId = chatDoc.id;
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const messagesSnapshot = await getDocs(messagesRef);
+
+    if (messagesSnapshot.empty) {
+      // No messages to delete
+      return;
+    }
+
+    // Firestore batch limit is 500 operations
+    const batchSize = 500;
+    const messages = messagesSnapshot.docs;
+    
+    // Delete messages in batches
+    for (let i = 0; i < messages.length; i += batchSize) {
+      const batch = writeBatch(db);
+      const batchMessages = messages.slice(i, i + batchSize);
+      
+      batchMessages.forEach((messageDoc) => {
+        batch.delete(messageDoc.ref);
+      });
+      
+      await batch.commit();
+    }
+
+    // Delete the chat document
+    await deleteDoc(doc(db, "chats", chatId));
+  } catch (error) {
+    // Log error but don't throw - we don't want to fail the unfriend/block operation
+    // if message deletion fails
+    console.error('Error deleting chat messages:', error);
+  }
+};
 
 export const sendFriendRequest = async (fromUserId, toUserId) => {
   try {
@@ -235,6 +302,9 @@ export const removeFriend = async (userId, friendId) => {
       });
     });
 
+    // Delete all chat messages after unfriending
+    await deleteChatMessages(userId, friendId);
+
     return { success: true };
 
   } catch (error) {
@@ -303,6 +373,9 @@ export const blockUser = async (userId, blockUserId) => {
       transaction.update(userRef, userUpdates);
       transaction.update(blockUserRef, blockUserUpdates);
     });
+
+    // Delete all chat messages after blocking
+    await deleteChatMessages(userId, blockUserId);
 
     return { success: true };
 
